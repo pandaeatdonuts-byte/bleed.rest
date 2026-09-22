@@ -411,7 +411,7 @@ local function ensureTag(char)
     tag.Name = "bleedTag"
     tag.Size = UDim2.new(0, 140, 0, 44)
     tag.StudsOffset = Vector3.new(0, 3.2, 0)
-    tag.AlwaysOnTop = true
+    tag.AlwaysOnTop = false -- menu (DisplayOrder 1000) draws above ESP
     local name = Instance.new("TextLabel")
     name.Name = "Name"
     name.Size = UDim2.new(1, 0, 0, 26)
@@ -459,8 +459,10 @@ RunService.RenderStepped:Connect(function()
     if not cam then return end
     local mousePos = screenMouse()
     -- fov circles
-    setCircle(fovCircle, fovRing, State.ShowAimFOV and State.Aimbot, mousePos, State.AimFOV)
-    setCircle(silentCircle, silentRing, State.ShowSilentFOV and State.Silent, mousePos, State.SilentFOV)
+    -- Drawing renders above all Roblox GUI: hide overlays while menu is open
+    local menuOpen = Lumen.MenuOpen == true
+    setCircle(fovCircle, fovRing, State.ShowAimFOV and State.Aimbot and not menuOpen, mousePos, State.AimFOV)
+    setCircle(silentCircle, silentRing, State.ShowSilentFOV and State.Silent and not menuOpen, mousePos, State.SilentFOV)
     -- per-player visuals
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
@@ -481,9 +483,8 @@ RunService.RenderStepped:Connect(function()
             hl.Enabled = showPlayer and State.Chams
             if hl.Enabled then
                 hl.FillColor = roleColor(role)
-                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
                 hl.FillTransparency = State.ChamsFill
-                hl.OutlineTransparency = 0
+                hl.OutlineTransparency = 1
                 hl.DepthMode = State.ChamsTop and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
             end
             -- nametag
@@ -516,7 +517,7 @@ RunService.RenderStepped:Connect(function()
             -- tracer
             local line = getTracer(plr)
             if line then
-                local showLine = showPlayer and State.Tracer and hrp ~= nil
+                local showLine = showPlayer and State.Tracer and hrp ~= nil and not menuOpen
                 local sp, onScreen = Vector2.new(0, 0), false
                 if hrp then sp, onScreen = screenPoint(cam, hrp.Position) end
                 line.Visible = showLine and onScreen
@@ -785,6 +786,10 @@ end })
 local FlyLabel = MoveSec:Label({ Text = "Fly" })
 FlyLabel:Toggle({ State = false; Flag = "Fly"; Callback = function(v) State.Fly = v end })
 FlyLabel:Keybind({ Key = Enum.KeyCode.F; Type = "Toggle"; Flag = "FlyKey"; Callback = function() end })
+local NoclipOn = MoveSec:Label({ Text = "Noclip" })
+NoclipOn:Toggle({ State = false; Flag = "Noclip"; Callback = function(v) State.Noclip = v end })
+local ClickTpOn = MoveSec:Label({ Text = "Ctrl+Click teleport" })
+ClickTpOn:Toggle({ State = false; Flag = "ClickTP"; Callback = function(v) State.ClickTP = v end })
 
 -- // World helpers (client-side only)
 local Lighting = game:GetService("Lighting")
@@ -910,11 +915,6 @@ EnvSec:Slider({ Name = "Gravity"; Suffix = ""; Value = 196.2; Min = 0; Max = 500
     State.Grav = v
     pcall(function() Workspace.Gravity = v end)
 end })
-local MoveSec2 = WorldSub:Section({ Name = "Movement"; Side = "Left"; Icon = "move" })
-local NoclipOn = MoveSec2:Label({ Text = "Noclip" })
-NoclipOn:Toggle({ State = false; Flag = "Noclip"; Callback = function(v) State.Noclip = v end })
-local ClickTpOn = MoveSec2:Label({ Text = "Ctrl+Click teleport" })
-ClickTpOn:Toggle({ State = false; Flag = "ClickTP"; Callback = function(v) State.ClickTP = v end })
 local TpSec = WorldSub:Section({ Name = "Teleports"; Side = "Right"; Icon = "zap" })
 TpSec:Button({ Name = "To murderer"; Callback = function()
     local pos = charPosOfRole("Murderer")

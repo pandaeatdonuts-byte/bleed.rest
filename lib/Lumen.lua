@@ -406,7 +406,7 @@ local function BindDrag(Object: GuiObject, Handle: GuiObject?, ClampScreen: bool
 			if ClampScreen then
 				Target = ClampToScreen(Object, Target)
 			end
-			Object.Position = Object.Position:Lerp(Target, 0.88)
+			Object.Position = Object.Position:Lerp(Target, 0.3) -- bleed.rest: delayed/floaty drag
 		end)
 	end)
 
@@ -1702,7 +1702,7 @@ Library.SubElements.Colorpicker = function(self: Library, propertyTable: {})
 	return Colorpicker
 end
 
-Library._Instance = Add("ScreenGui", { Parent = RunService:IsStudio() and Client.PlayerGui or Services:GetService("CoreGui"); Name = "Window"; ZIndexBehavior = ZIB.Sibling; }) :: ScreenGui
+Library._Instance = Add("ScreenGui", { Parent = RunService:IsStudio() and Client.PlayerGui or Services:GetService("CoreGui"); Name = "Window"; ZIndexBehavior = ZIB.Sibling; DisplayOrder = 1000; }) :: ScreenGui
 
 Library.Window = function(self: Library, propertyTable: {})
 	local Window = Overwrite({
@@ -2689,6 +2689,7 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 		Parent = RunService:IsStudio() and Client.PlayerGui or Services:GetService("CoreGui");
 		Name = "bleed.restLoading";
 		ZIndexBehavior = ZIB.Sibling;
+		DisplayOrder = 1000;
 		IgnoreGuiInset = true;
 	})
 
@@ -2815,6 +2816,7 @@ local function EnsureOverlayGui()
 		Parent = RunService:IsStudio() and Client.PlayerGui or Services:GetService("CoreGui");
 		Name = "bleed.restOverlay";
 		ZIndexBehavior = ZIB.Sibling;
+		DisplayOrder = 1000;
 		IgnoreGuiInset = true;
 	})
 	return Library._Overlay
