@@ -104,11 +104,11 @@ local State = {
     AutoCoins = false,
     -- esp
     ESP = true, Chams = true, EspName = true, EspRole = true, EspDist = true,
-    EspHealth = true, Tracer = false, TracerFrom = "Bottom", TracerThick = 1,
+    Tracer = false, TracerFrom = "Bottom", TracerThick = 1,
     EspMaxDist = 600, ShowInnocents = true, ShowDead = false,
     ChamsFill = 0.6, ChamsTop = true,
-    ColMurderer = Color3.fromRGB(255, 50, 50), ColSheriff = Color3.fromRGB(80, 140, 255),
-    ColInnocent = Color3.fromRGB(120, 255, 130), ColArmed = Color3.fromRGB(255, 200, 50),
+    ColFill = Color3.fromRGB(255, 255, 255), ColOutline = Color3.fromRGB(255, 255, 255),
+    MurderESP = true, SheriffESP = true,
     -- aimbot
     Aimbot = false, AimHeld = false, AimFOV = 120, AimMode = "Mouse",
     AimSens = 1.0, AimSmoothX = 6, AimSmoothY = 6, AimSmooth = 35,
@@ -176,11 +176,17 @@ local function effRole(plr)
     if t then return t end
     return "Innocent"
 end
-local function roleColor(role)
-    if role == "Murderer" then return State.ColMurderer end
-    if role == "Sheriff" then return State.ColSheriff end
-    if role == "Armed" then return State.ColArmed end
-    return State.ColInnocent
+local THREAT_RED = Color3.fromRGB(255, 50, 50)
+local THREAT_BLUE = Color3.fromRGB(80, 140, 255)
+local function espFill(role)
+    if role == "Murderer" and State.MurderESP then return THREAT_RED end
+    if role == "Sheriff" and State.SheriffESP then return THREAT_BLUE end
+    return State.ColFill
+end
+local function espOutline(role)
+    if role == "Murderer" and State.MurderESP then return THREAT_RED end
+    if role == "Sheriff" and State.SheriffESP then return THREAT_BLUE end
+    return State.ColOutline
 end
 
 -- scrape scoreboard + own role label every few seconds
@@ -356,31 +362,21 @@ end
 -- // ESP engine
 local hasDrawing = typeof(Drawing) == "table"
 local tracers = {}
-local fovCircle, fovRing, silentCircle, silentRing
+local fovCircle, silentCircle
 if hasDrawing then
     pcall(function()
-        fovRing = Drawing.new("Circle")
-        fovRing.Thickness = 3 fovRing.Filled = false
-        fovRing.Color = Color3.fromRGB(0, 0, 0) fovRing.Transparency = 0.4 fovRing.Visible = false
         fovCircle = Drawing.new("Circle")
         fovCircle.Thickness = 1 fovCircle.Filled = false
         fovCircle.Color = Color3.fromRGB(255, 255, 255) fovCircle.Visible = false
-        silentRing = Drawing.new("Circle")
-        silentRing.Thickness = 3 silentRing.Filled = false
-        silentRing.Color = Color3.fromRGB(0, 0, 0) silentRing.Transparency = 0.4 silentRing.Visible = false
         silentCircle = Drawing.new("Circle")
         silentCircle.Thickness = 1 silentCircle.Filled = false
         silentCircle.Color = Color3.fromRGB(255, 80, 80) silentCircle.Visible = false
     end)
 end
-local function setCircle(pair, ring, show, pos, radius)
-    if pair then
-        pair.Visible = show
-        if show then pair.Position = pos pair.Radius = radius end
-    end
-    if ring then
-        ring.Visible = show
-        if show then ring.Position = pos ring.Radius = radius + 2 end
+local function setCircle(circle, show, pos, radius)
+    if circle then
+        circle.Visible = show
+        if show then circle.Position = pos circle.Radius = radius end
     end
 end
 local function getTracer(plr)
@@ -406,34 +402,25 @@ local function tracerOrigin(cam)
 end
 local function ensureTag(char)
     local tag = char:FindFirstChild("bleedTag")
-    if tag then return tag end
+    if tag then
+        local stale = tag:FindFirstChild("BarBg")
+        if stale then stale:Destroy() end
+        return tag
+    end
     tag = Instance.new("BillboardGui")
     tag.Name = "bleedTag"
-    tag.Size = UDim2.new(0, 140, 0, 44)
+    tag.Size = UDim2.new(0, 140, 0, 28)
     tag.StudsOffset = Vector3.new(0, 3.2, 0)
     tag.AlwaysOnTop = false -- menu (DisplayOrder 1000) draws above ESP
     local name = Instance.new("TextLabel")
     name.Name = "Name"
-    name.Size = UDim2.new(1, 0, 0, 26)
+    name.Size = UDim2.new(1, 0, 1, 0)
     name.BackgroundTransparency = 1
     name.TextStrokeTransparency = 0
     name.TextScaled = true
     name.Font = Enum.Font.SourceSansBold
     name.TextColor3 = Color3.fromRGB(255, 255, 255)
     name.Parent = tag
-    local barBg = Instance.new("Frame")
-    barBg.Name = "BarBg"
-    barBg.Size = UDim2.new(1, -20, 0, 6)
-    barBg.Position = UDim2.new(0, 10, 0, 30)
-    barBg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    barBg.BorderSizePixel = 0
-    barBg.Parent = tag
-    local bar = Instance.new("Frame")
-    bar.Name = "Bar"
-    bar.Size = UDim2.new(1, 0, 1, 0)
-    bar.BackgroundColor3 = Color3.fromRGB(80, 255, 80)
-    bar.BorderSizePixel = 0
-    bar.Parent = barBg
     tag.Parent = char
     return tag
 end
@@ -461,8 +448,8 @@ RunService.RenderStepped:Connect(function()
     -- fov circles
     -- Drawing renders above all Roblox GUI: hide overlays while menu is open
     local menuOpen = Lumen.MenuOpen == true
-    setCircle(fovCircle, fovRing, State.ShowAimFOV and State.Aimbot and not menuOpen, mousePos, State.AimFOV)
-    setCircle(silentCircle, silentRing, State.ShowSilentFOV and State.Silent and not menuOpen, mousePos, State.SilentFOV)
+    setCircle(fovCircle, State.ShowAimFOV and State.Aimbot and not menuOpen, mousePos, State.AimFOV)
+    setCircle(silentCircle, State.ShowSilentFOV and State.Silent and not menuOpen, mousePos, State.SilentFOV)
     -- per-player visuals
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
@@ -482,14 +469,15 @@ RunService.RenderStepped:Connect(function()
             local hl = ensureChams(char)
             hl.Enabled = showPlayer and State.Chams
             if hl.Enabled then
-                hl.FillColor = roleColor(role)
+                hl.FillColor = espFill(role)
                 hl.FillTransparency = State.ChamsFill
-                hl.OutlineTransparency = 1
+                hl.OutlineColor = espOutline(role)
+                hl.OutlineTransparency = 0
                 hl.DepthMode = State.ChamsTop and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
             end
             -- nametag
             local tag = ensureTag(char)
-            local showTag = showPlayer and (State.EspName or State.EspRole or State.EspDist or State.EspHealth)
+            local showTag = showPlayer and (State.EspName or State.EspRole or State.EspDist)
             tag.Enabled = showTag
             if showTag and hum and hrp then
                 local parts = {}
@@ -499,19 +487,7 @@ RunService.RenderStepped:Connect(function()
                 local nl = tag:FindFirstChild("Name")
                 if nl then
                     nl.Text = table.concat(parts, " ")
-                    nl.TextColor3 = roleColor(role)
-                end
-                local bg = tag:FindFirstChild("BarBg")
-                if bg then
-                    bg.Visible = State.EspHealth
-                    if State.EspHealth then
-                        local bar = bg:FindFirstChild("Bar")
-                        local pct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                        if bar then
-                            bar.Size = UDim2.new(pct, 0, 1, 0)
-                            bar.BackgroundColor3 = Color3.fromHSV(pct * 0.33, 1, 1)
-                        end
-                    end
+                    nl.TextColor3 = espFill(role)
                 end
             end
             -- tracer
@@ -524,7 +500,7 @@ RunService.RenderStepped:Connect(function()
                 if line.Visible then
                     line.From = tracerOrigin(cam)
                     line.To = sp
-                    line.Color = roleColor(role)
+                    line.Color = espFill(role)
                     line.Thickness = State.TracerThick
                 end
             end
@@ -708,15 +684,16 @@ local EspOn = EspSec:Label({ Text = "Enable ESP" })
 EspOn:Toggle({ State = true; Flag = "ESP"; Callback = function(v) State.ESP = v end })
 local ChamsOn = EspSec:Label({ Text = "Chams" })
 ChamsOn:Toggle({ State = true; Flag = "Chams"; Callback = function(v) State.Chams = v end })
-ChamsOn:Colorpicker({ Color = Color3.fromRGB(255, 255, 255); Flag = "ChamsOutline"; Callback = function() end })
+local FillCol = EspSec:Label({ Text = "Chams fill" })
+FillCol:Colorpicker({ Color = Color3.fromRGB(255, 255, 255); Flag = "ColFill"; Callback = function(v) State.ColFill = v end })
+local OutCol = EspSec:Label({ Text = "Chams outline" })
+OutCol:Colorpicker({ Color = Color3.fromRGB(255, 255, 255); Flag = "ColOutline"; Callback = function(v) State.ColOutline = v end })
 local NameOn = EspSec:Label({ Text = "Nametags" })
 NameOn:Toggle({ State = true; Flag = "EspName"; Callback = function(v) State.EspName = v end })
 local RoleOn = EspSec:Label({ Text = "Role text" })
 RoleOn:Toggle({ State = true; Flag = "EspRole"; Callback = function(v) State.EspRole = v end })
 local DistOn = EspSec:Label({ Text = "Distance" })
 DistOn:Toggle({ State = true; Flag = "EspDist"; Callback = function(v) State.EspDist = v end })
-local HpOn = EspSec:Label({ Text = "Health bar" })
-HpOn:Toggle({ State = true; Flag = "EspHealth"; Callback = function(v) State.EspHealth = v end })
 local TracerOn = EspSec:Label({ Text = "Tracers" })
 TracerOn:Toggle({ State = false; Flag = "Tracer"; Callback = function(v) State.Tracer = v end })
 EspSec:Dropdown({ Name = "Tracer origin"; Options = { "Bottom", "Top", "Mouse" }; Value = "Bottom"; Flag = "TracerFrom"; Callback = function(v) State.TracerFrom = v end })
@@ -732,14 +709,11 @@ local DeadOn = RoleSec:Label({ Text = "Show dead" })
 DeadOn:Toggle({ State = false; Flag = "ShowDead"; Callback = function(v) State.ShowDead = v end })
 local TopOn = RoleSec:Label({ Text = "Chams through walls" })
 TopOn:Toggle({ State = true; Flag = "ChamsTop"; Callback = function(v) State.ChamsTop = v end })
-local MurCol = RoleSec:Label({ Text = "Murderer color" })
-MurCol:Colorpicker({ Color = Color3.fromRGB(255, 50, 50); Flag = "ColMurderer"; Callback = function(v) State.ColMurderer = v end })
-local SheCol = RoleSec:Label({ Text = "Sheriff color" })
-SheCol:Colorpicker({ Color = Color3.fromRGB(80, 140, 255); Flag = "ColSheriff"; Callback = function(v) State.ColSheriff = v end })
-local InnCol = RoleSec:Label({ Text = "Innocent color" })
-InnCol:Colorpicker({ Color = Color3.fromRGB(120, 255, 130); Flag = "ColInnocent"; Callback = function(v) State.ColInnocent = v end })
-local ArmCol = RoleSec:Label({ Text = "Armed color" })
-ArmCol:Colorpicker({ Color = Color3.fromRGB(255, 200, 50); Flag = "ColArmed"; Callback = function(v) State.ColArmed = v end })
+local MurEsp = RoleSec:Label({ Text = "Murderer ESP" })
+MurEsp:Toggle({ State = true; Flag = "MurderESP"; Callback = function(v) State.MurderESP = v end })
+local SheEsp = RoleSec:Label({ Text = "Sheriff ESP" })
+SheEsp:Toggle({ State = true; Flag = "SheriffESP"; Callback = function(v) State.SheriffESP = v end })
+RoleSec:Paragraph({ Title = "Override"; Body = "Murderer forces red, sheriff forces blue on every active ESP option. Innocents untouched." })
 
 -- Farm
 local FarmPage = Window:Page({ Icon = "box" })
@@ -784,8 +758,13 @@ MoveSec:Slider({ Name = "JumpPower"; Suffix = ""; Value = 50; Min = 50; Max = 30
     if hum then hum.JumpPower = v end
 end })
 local FlyLabel = MoveSec:Label({ Text = "Fly" })
-FlyLabel:Toggle({ State = false; Flag = "Fly"; Callback = function(v) State.Fly = v end })
+local setFly -- forward: defined in world helpers below
+FlyLabel:Toggle({ State = false; Flag = "Fly"; Callback = function(v)
+    State.Fly = v
+    setFly(v)
+end })
 FlyLabel:Keybind({ Key = Enum.KeyCode.F; Type = "Toggle"; Flag = "FlyKey"; Callback = function() end })
+MoveSec:Slider({ Name = "Fly speed"; Suffix = ""; Value = 60; Min = 10; Max = 250; Increment = 5; Flag = "FlySpeed"; Callback = function(v) State.FlySpeed = v end })
 local NoclipOn = MoveSec:Label({ Text = "Noclip" })
 NoclipOn:Toggle({ State = false; Flag = "Noclip"; Callback = function(v) State.Noclip = v end })
 local ClickTpOn = MoveSec:Label({ Text = "Ctrl+Click teleport" })
@@ -795,6 +774,47 @@ ClickTpOn:Toggle({ State = false; Flag = "ClickTP"; Callback = function(v) State
 local Lighting = game:GetService("Lighting")
 local savedLight = nil
 local savedAtmo = {}
+-- fly rig
+local flyBV, flyBG = nil, nil
+setFly = function(on)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if flyBV then pcall(function() flyBV:Destroy() end) flyBV = nil end
+    if flyBG then pcall(function() flyBG:Destroy() end) flyBG = nil end
+    if on and hrp and hum then
+        hum:ChangeState(Enum.HumanoidStateType.Physics)
+        flyBG = Instance.new("BodyGyro")
+        flyBG.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+        flyBG.P = 10000
+        flyBG.CFrame = hrp.CFrame
+        flyBG.Parent = hrp
+        flyBV = Instance.new("BodyVelocity")
+        flyBV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        flyBV.Velocity = Vector3.new(0, 0, 0)
+        flyBV.Parent = hrp
+    elseif hum then
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+    end
+end
+RunService.RenderStepped:Connect(function()
+    if not State.Fly then return end
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    if not flyBV or not flyBG or flyBV.Parent ~= hrp then
+        if State.Fly then setFly(true) else return end
+    end
+    local cam = getCam()
+    if not cam then return end
+    local fwd = (UIS:IsKeyDown(Enum.KeyCode.W) and 1 or 0) - (UIS:IsKeyDown(Enum.KeyCode.S) and 1 or 0)
+    local side = (UIS:IsKeyDown(Enum.KeyCode.D) and 1 or 0) - (UIS:IsKeyDown(Enum.KeyCode.A) and 1 or 0)
+    local vert = (UIS:IsKeyDown(Enum.KeyCode.Space) and 1 or 0) - (UIS:IsKeyDown(Enum.KeyCode.LeftControl) and 1 or 0)
+    local move = cam.CFrame.LookVector * fwd + cam.CFrame.RightVector * side + Vector3.new(0, 1, 0) * vert
+    if move.Magnitude > 0 then move = move.Unit * State.FlySpeed else move = Vector3.new(0, 0, 0) end
+    flyBV.Velocity = move
+    flyBG.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + cam.CFrame.LookVector)
+end)
 local function tpTo(pos)
     local c = LocalPlayer.Character
     local hrp = c and c:FindFirstChild("HumanoidRootPart")
@@ -934,27 +954,6 @@ TpSec:Button({ Name = "To lobby"; Callback = function()
     if not spawn then spawn = Workspace:FindFirstChildWhichIsA("SpawnLocation", true) end
     if spawn then tpTo(spawn.Position) else Lumen.Notify({ Title = "bleed.rest"; Text = "No spawn found"; Duration = 2 }) end
 end })
-
--- Misc
-local Misc = Window:Page({ Icon = "wrench" })
-local MiscSub = Misc:SubPage({ Name = "Server" })
-local MiscSec = MiscSub:Section({ Name = "Utility"; Side = "Left"; Icon = "terminal" })
-MiscSec:Paragraph({ Title = "Codes"; Body = "Uses Remotes/Extras.RedeemCode + CheckCode." })
-MiscSec:Dropdown({ Name = "1v1 Queue"; Options = { "Join", "Leave" }; Value = "Join"; Flag = "QueueAction"; Callback = function(v)
-    if CustomGames then fire1(CustomGames:FindFirstChild(v == "Join" and "Join1v1Queue" or "Leave1v1Queue")) end
-end })
-
--- Settings (menu bind lives here)
-local Settings = Window:Page({ Icon = "settings" })
-local MenuSec = Settings:Section({ Name = "Menu"; Side = "Left"; Icon = "menu" })
-local MenuKeyLabel = MenuSec:Label({ Text = "Menu key" })
-local MenuKeyBind
-MenuKeyBind = MenuKeyLabel:Keybind({ Key = Enum.KeyCode.RightShift; Type = "Toggle"; Flag = "MenuKeybind"; Callback = function()
-    if MenuKeyBind and MenuKeyBind.Key then Lumen.MenuKey = MenuKeyBind.Key end
-end })
-MenuSec:Paragraph({ Title = "Hint"; Body = "Click the key button, press any key or mouse button. Also mirrored in Configs." })
-local About = Settings:Section({ Name = "About"; Side = "Right"; Icon = "info" })
-About:Paragraph({ Title = "bleed.rest"; Body = "MM2-clone build. PlaceId 142823291." })
 
 if getgenv then getgenv().bleed_rest_loaded = function() pcall(function() Lumen.Unload() end) end end
 
