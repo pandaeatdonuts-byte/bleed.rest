@@ -1,6 +1,6 @@
--- bleed.lua | bleed.rest | MM2-clone (PlaceId 142823291) | vendored Lumen UI
+-- mm2/main.lua | bleed.rest hub | MM2-clone (PlaceId 142823291) | vendored Lumen UI
 -- UI upstream: https://github.com/chromatiks/lumen/tree/main (vendored + rebranded in lib/)
--- Execute with your Roblox executor (NOT plain lua): copy-paste this file or loadstring it.
+-- Loaded via hub loader.lua (per-game entry). Can also run standalone.
 
 if getgenv and getgenv().bleed_rest_loaded then
     pcall(function() getgenv().bleed_rest_loaded() end)
