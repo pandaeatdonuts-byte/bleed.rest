@@ -134,4 +134,3 @@ Meta:Paragraph({ Title = "Build"; Body = "Lumen UI" })
 
 Lumen:BuildConfigPage(Window)
 Lumen.Notify({ Title = "Lumen"; Text = "Loaded successfully"; Type = "Success"; Duration = 3 })
-print("[Lumen] ready")

@@ -12,5 +12,4 @@ if not file then
     warn("[bleed.rest] unsupported game (PlaceId " .. tostring(game.PlaceId) .. ")")
     return
 end
-print("[bleed.rest] loading " .. file)
 loadstring(game:HttpGet(BASE .. file))()

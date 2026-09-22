@@ -18,22 +18,18 @@ local function httpGet(url)
     return nil, tostring(res):sub(1, 200)
 end
 
-print("[bleed.rest] fetching UI lib...")
 local libSrc, libErr
 for _, url in ipairs(LIB_URLS) do
     libSrc, libErr = httpGet(url)
-    if libSrc then print("[bleed.rest] lib source: " .. url) break end
-    print("[bleed.rest] lib fetch failed (" .. url .. "): " .. tostring(libErr))
+    if libSrc then break end
 end
 assert(libSrc, "[bleed.rest] could not fetch UI lib.")
 local Lumen = loadstring(libSrc)()
-print("[bleed.rest] UI loaded.")
 
 pcall(function() Lumen.SetConfigFolder("bleed_rest") end)
 
 -- Menu toggle: LeftAlt is Lumen default. Force RightShift too + force-show.
 Lumen.MenuKey = Enum.KeyCode.RightShift
-print("[bleed.rest] menu key = RightShift (LeftAlt also works). Executor console + F9 to see logs.")
 
 Lumen:LoadingScreen({ Title = "bleed.rest", Subtitle = "Initializing...", Duration = 1.0 })
 Lumen.SetWatermark("bleed.rest", true)
@@ -49,7 +45,6 @@ local LocalPlayer = Players.LocalPlayer
 -- // Remotes (non-blocking: game may still be loading, UI must show regardless)
 local Remotes = RS:FindFirstChild("Remotes")
 if not Remotes then
-    print("[bleed.rest] waiting for Remotes (max 15s)...")
     Remotes = RS:WaitForChild("Remotes", 15)
 end
 local function safeChild(parent, name, timeout)
@@ -64,7 +59,6 @@ local ShopR = safeChild(Remotes, "Shop")
 local ExtrasR = safeChild(Remotes, "Extras")
 local CustomGames = safeChild(Remotes, "CustomGames")
 local TrapSystem = RS:FindFirstChild("TrapSystem")
-print("[bleed.rest] remotes: " .. tostring(Remotes ~= nil))
 
 local function fire(remote, ...)
     if remote then pcall(function() remote:FireServer(...) end) end
@@ -253,4 +247,3 @@ About:Paragraph({ Title = "bleed.rest"; Body = "MM2-clone build. PlaceId 1428232
 Lumen:BuildConfigPage(Window)
 Lumen.ToggleMenu(true)
 Lumen.Notify({ Title = "bleed.rest"; Text = "Loaded successfully (RightShift to toggle)"; Type = "Success"; Duration = 3 })
-print("[bleed.rest] ready. If you see this but no UI: UI is in gethui/CoreGui, press RightShift, check F9 console for errors.")
