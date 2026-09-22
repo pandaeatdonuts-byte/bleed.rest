@@ -1709,7 +1709,6 @@ Library.Window = function(self: Library, propertyTable: {})
 		Title = "",
 		Footer = "",
 		Brand = nil,
-		BrandSubtitle = "CLIENT UI",
 		Logo = nil,
 		Icon = nil,
 	}, propertyTable or {})
@@ -1720,7 +1719,7 @@ Library.Window = function(self: Library, propertyTable: {})
 	Library.ThemeLink(Sidebar, "BackgroundColor3", "Surface")
 
 	-- Author logo (only if Logo / Icon provided — no default hashtag)
-	local LogoSrc = Window.Logo or Window.Icon or "100022408379220"
+	local LogoSrc = Window.Logo or Window.Icon
 	local BrandText = tostring(Window.Brand or Window.Title or "bleed.rest")
 	local LogoH = 76
 	local LogoWrap = Add("Frame", {
@@ -1810,20 +1809,6 @@ Library.Window = function(self: Library, propertyTable: {})
 		TextTruncate = ETT.AtEnd;
 		ZIndex = 3;
 	})
-	local BrandSubtitle = Add("TextLabel", {
-		Parent = LogoWrap;
-		AnchorPoint = V2(0.5, 0.5);
-		Position = UFS(0.5, 0.87);
-		Size = UD2(1, -8, 0, 9);
-		BackgroundTransparency = 1;
-		FontFace = FN("rbxassetid://12187365364", FW.SemiBold, FS.Normal);
-		Text = string.upper(tostring(Window.BrandSubtitle or "CLIENT UI"));
-		TextColor3 = Library.Theme.TextDim;
-		TextSize = 6;
-		TextTransparency = 0.15;
-		TextTruncate = ETT.AtEnd;
-		ZIndex = 3;
-	})
 	Window.LogoImage = LogoBtn
 
 	local PageButtons = Add("ScrollingFrame", {
@@ -1860,7 +1845,6 @@ Library.Window = function(self: Library, propertyTable: {})
 		BrandMark.Visible = not Show
 		BrandGlow.Visible = not Show
 		BrandName.Visible = true
-		BrandSubtitle.Visible = true
 	end
 
 	local Header = Add("Frame", { Parent = Canvas; Name = "Header"; BackgroundColor3 = Library.Theme.SurfaceAlt; BorderColor3 = RGB(0, 0, 0); BorderSizePixel = 0; Position = UFO(75, 0); Size = UD2(1, -75, 0, 50); }) :: Frame
@@ -2736,8 +2720,7 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 		Title = "bleed.rest";
 		Subtitle = "Loading…";
 		Duration = 1.6;
-		BrandLabel = "CLIENT INTERFACE";
-		Logo = "100022408379220";
+		Logo = nil;
 	}, propertyTable or {})
 
 	local Gui = Add("ScreenGui", {
@@ -2773,7 +2756,33 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 		Rotation = 0;
 	})
 	local LogoImage = ResolveIcon(Props.Logo)
-	local LoadingMarkGlow = Add("ImageLabel", {
+	local HasLoadingLogo = LogoImage ~= ""
+	Add("TextLabel", {
+		Parent = Card;
+		Position = UFO(20, 19);
+		Size = UFO(48, 48);
+		BackgroundTransparency = 1;
+		FontFace = FN("rbxassetid://12187365364", FW.Bold, FS.Normal);
+		Text = "✦";
+		TextColor3 = Library.Theme.Accent;
+		TextTransparency = 0.32;
+		TextSize = 45;
+		ZIndex = 52;
+		Visible = not HasLoadingLogo;
+	})
+	Add("TextLabel", {
+		Parent = Card;
+		Position = UFO(21, 20);
+		Size = UFO(45, 45);
+		BackgroundTransparency = 1;
+		FontFace = FN("rbxassetid://12187365364", FW.Bold, FS.Normal);
+		Text = "✦";
+		TextColor3 = RGB(248, 251, 255);
+		TextSize = 37;
+		ZIndex = 53;
+		Visible = not HasLoadingLogo;
+	})
+	local LoadingLogoGlow = Add("ImageLabel", {
 		Parent = Card;
 		Position = UFO(20, 19);
 		Size = UFO(48, 48);
@@ -2783,8 +2792,9 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 		ImageTransparency = 0.3;
 		ScaleType = SCL.Fit;
 		ZIndex = 52;
+		Visible = HasLoadingLogo;
 	})
-	local LoadingMark = Add("ImageLabel", {
+	local LoadingLogo = Add("ImageLabel", {
 		Parent = Card;
 		Position = UFO(21, 20);
 		Size = UFO(45, 45);
@@ -2793,6 +2803,7 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 		ImageColor3 = RGB(248, 251, 255);
 		ScaleType = SCL.Fit;
 		ZIndex = 53;
+		Visible = HasLoadingLogo;
 	})
 	Add("TextLabel", {
 		Parent = Card;
@@ -2803,17 +2814,6 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 		Text = Props.Title;
 		TextColor3 = Library.Theme.Text;
 		TextSize = 20;
-		TextXAlignment = TXA.Left;
-	})
-	Add("TextLabel", {
-		Parent = Card;
-		BackgroundTransparency = 1;
-		Position = UFO(78, 49);
-		Size = UD2(1, -96, 0, 12);
-		FontFace = FN("rbxassetid://12187365364", FW.Bold, FS.Normal);
-		Text = string.upper(tostring(Props.BrandLabel));
-		TextColor3 = Library.Theme.Accent;
-		TextSize = 8;
 		TextXAlignment = TXA.Left;
 	})
 	Add("TextLabel", {
