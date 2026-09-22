@@ -12,4 +12,9 @@ if not file then
     warn("[bleed.rest] unsupported game (PlaceId " .. tostring(game.PlaceId) .. ")")
     return
 end
-loadstring(game:HttpGet(BASE .. file))()
+local ok, src = pcall(function() return game:HttpGet(BASE .. file) end)
+if not ok or not src or #src < 1000 then
+    warn("[bleed.rest] fetch failed for " .. file .. " (private repo or bad URL?)")
+    return
+end
+loadstring(src)()
