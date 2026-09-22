@@ -1,6 +1,6 @@
 -- bleed.rest vendored UI library.
 -- Upstream: https://github.com/chromatiks/lumen (by chromatiks). All UI credit to upstream.
--- bleed.rest defaults: RightShift menu key, bleed_rest config folder, red accent.
+-- bleed.rest defaults: RightShift menu key, bleed_rest config folder, cyan accent.
 local CSK = ColorSequenceKeypoint.new
 local NSK = NumberSequenceKeypoint.new
 local BSP = Enum.BorderStrokePosition
@@ -1708,6 +1708,8 @@ Library.Window = function(self: Library, propertyTable: {})
 	local Window = Overwrite({
 		Title = "",
 		Footer = "",
+		Brand = nil,
+		BrandSubtitle = "CLIENT UI",
 		Logo = nil,
 		Icon = nil,
 	}, propertyTable or {})
@@ -1718,59 +1720,110 @@ Library.Window = function(self: Library, propertyTable: {})
 	Library.ThemeLink(Sidebar, "BackgroundColor3", "Surface")
 
 	-- Author logo (only if Logo / Icon provided — no default hashtag)
-	local LogoSrc = Window.Logo or Window.Icon
-	local LogoH = (LogoSrc and LogoSrc ~= "") and 58 or 8
+	local LogoSrc = Window.Logo or Window.Icon or "100022408379220"
+	local BrandText = tostring(Window.Brand or Window.Title or "bleed.rest")
+	local LogoH = 76
 	local LogoWrap = Add("Frame", {
 		Parent = Sidebar;
 		Name = "Logo";
 		BackgroundTransparency = 1;
 		Size = UD2(1, 0, 0, LogoH);
 		BorderSizePixel = 0;
-		Visible = LogoH > 8;
+		Visible = true;
 	})
-	Add("UIPadding", {
+	local BrandGlow = Add("TextLabel", {
 		Parent = LogoWrap;
-		PaddingTop = UD(0, 10);
+		AnchorPoint = V2(0.5, 0.5);
+		Position = UFS(0.5, 0.31);
+		Size = UFO(34, 34);
+		BackgroundTransparency = 1;
+		FontFace = FN("rbxassetid://12187365364", FW.Bold, FS.Normal);
+		Text = "✦";
+		TextColor3 = Library.Theme.Accent;
+		TextTransparency = 0.35;
+		TextSize = 31;
+		ZIndex = 1;
+	})
+	local BrandMark = Add("TextLabel", {
+		Parent = LogoWrap;
+		AnchorPoint = V2(0.5, 0.5);
+		Position = UFS(0.5, 0.31);
+		Size = UFO(30, 30);
+		BackgroundTransparency = 1;
+		FontFace = FN("rbxassetid://12187365364", FW.Bold, FS.Normal);
+		Text = "✦";
+		TextColor3 = RGB(248, 251, 255);
+		TextSize = 25;
+		ZIndex = 2;
+		Visible = LogoSrc == nil or LogoSrc == "";
 	})
 	local LogoBtn = Add("ImageLabel", {
 		Parent = LogoWrap;
 		AnchorPoint = V2(0.5, 0.5);
-		Position = UFS(0.5, 0.55);
-		Size = UFO(32, 32);
+		Position = UFS(0.5, 0.31);
+		Size = UFO(25, 25);
 		BackgroundTransparency = 1;
 		Image = ResolveIcon(LogoSrc);
 		ImageColor3 = RGB(255, 255, 255);
 		ImageTransparency = 0;
 		ScaleType = SCL.Fit;
 		ZIndex = 3;
-		Visible = LogoWrap.Visible;
+		Visible = LogoSrc ~= nil and LogoSrc ~= "";
 	})
 	local LogoGlow = Add("ImageLabel", {
 		Parent = LogoWrap;
 		AnchorPoint = V2(0.5, 0.5);
-		Position = UFS(0.5, 0.55);
+		Position = UFS(0.5, 0.31);
 		Size = UFO(64, 64);
 		BackgroundTransparency = 1;
 		Image = "rbxassetid://8992230677";
 		ImageColor3 = Library.Theme.Accent;
 		ImageTransparency = 0.75;
 		ZIndex = 1;
-		Visible = LogoWrap.Visible;
+		Visible = LogoBtn.Visible;
 	})
 	Library.ThemeLink(LogoGlow, "ImageColor3", "Accent")
 	local LogoGlow2 = Add("ImageLabel", {
 		Parent = LogoWrap;
 		AnchorPoint = V2(0.5, 0.5);
-		Position = UFS(0.5, 0.55);
+		Position = UFS(0.5, 0.31);
 		Size = UFO(42, 42);
 		BackgroundTransparency = 1;
 		Image = "rbxassetid://8992230677";
 		ImageColor3 = Library.Theme.Accent;
 		ImageTransparency = 0.88;
 		ZIndex = 2;
-		Visible = LogoWrap.Visible;
+		Visible = LogoBtn.Visible;
 	})
 	Library.ThemeLink(LogoGlow2, "ImageColor3", "Accent")
+	Library.ThemeLink(BrandGlow, "TextColor3", "Accent")
+	local BrandName = Add("TextLabel", {
+		Parent = LogoWrap;
+		AnchorPoint = V2(0.5, 0.5);
+		Position = UFS(0.5, 0.69);
+		Size = UD2(1, 0, 0, 12);
+		BackgroundTransparency = 1;
+		FontFace = FN("rbxassetid://12187365364", FW.Bold, FS.Normal);
+		Text = BrandText;
+		TextColor3 = Library.Theme.Text;
+		TextSize = 9;
+		TextTruncate = ETT.AtEnd;
+		ZIndex = 3;
+	})
+	local BrandSubtitle = Add("TextLabel", {
+		Parent = LogoWrap;
+		AnchorPoint = V2(0.5, 0.5);
+		Position = UFS(0.5, 0.87);
+		Size = UD2(1, -8, 0, 9);
+		BackgroundTransparency = 1;
+		FontFace = FN("rbxassetid://12187365364", FW.SemiBold, FS.Normal);
+		Text = string.upper(tostring(Window.BrandSubtitle or "CLIENT UI"));
+		TextColor3 = Library.Theme.TextDim;
+		TextSize = 6;
+		TextTransparency = 0.15;
+		TextTruncate = ETT.AtEnd;
+		ZIndex = 3;
+	})
 	Window.LogoImage = LogoBtn
 
 	local PageButtons = Add("ScrollingFrame", {
@@ -1800,14 +1853,14 @@ Library.Window = function(self: Library, propertyTable: {})
 		local Img = ResolveIcon(Icon)
 		LogoBtn.Image = Img
 		local Show = type(Img) == "string" and Img ~= ""
-		LogoWrap.Visible = Show
+		LogoWrap.Visible = true
 		LogoBtn.Visible = Show
 		LogoGlow.Visible = Show
 		LogoGlow2.Visible = Show
-		local H = Show and 58 or 8
-		LogoWrap.Size = UD2(1, 0, 0, H)
-		PageButtons.Position = UFO(0, H)
-		PageButtons.Size = UD2(1, 0, 1, -H)
+		BrandMark.Visible = not Show
+		BrandGlow.Visible = not Show
+		BrandName.Visible = true
+		BrandSubtitle.Visible = true
 	end
 
 	local Header = Add("Frame", { Parent = Canvas; Name = "Header"; BackgroundColor3 = Library.Theme.SurfaceAlt; BorderColor3 = RGB(0, 0, 0); BorderSizePixel = 0; Position = UFO(75, 0); Size = UD2(1, -75, 0, 50); }) :: Frame
@@ -2086,8 +2139,8 @@ Library.Window = function(self: Library, propertyTable: {})
 end
 
 Library.Theme = {
-	Accent = RGB(255, 60, 60),
-	AccentDark = RGB(150, 30, 30),
+	Accent = RGB(64, 177, 255),
+	AccentDark = RGB(18, 92, 176),
 	Background = RGB(9, 8, 8),
 	Surface = RGB(15, 14, 15),
 	SurfaceAlt = RGB(20, 20, 21),
@@ -2098,8 +2151,8 @@ Library.Theme = {
 }
 
 Library.DefaultTheme = {
-	Accent = RGB(255, 60, 60),
-	AccentDark = RGB(150, 30, 30),
+	Accent = RGB(64, 177, 255),
+	AccentDark = RGB(18, 92, 176),
 	Background = RGB(9, 8, 8),
 	Surface = RGB(15, 14, 15),
 	SurfaceAlt = RGB(20, 20, 21),
@@ -2683,6 +2736,8 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 		Title = "bleed.rest";
 		Subtitle = "Loading…";
 		Duration = 1.6;
+		BrandLabel = "CLIENT INTERFACE";
+		Logo = "100022408379220";
 	}, propertyTable or {})
 
 	local Gui = Add("ScreenGui", {
@@ -2697,7 +2752,7 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 		Parent = Gui;
 		AnchorPoint = V2(0.5, 0.5);
 		Position = UFS(0.5, 0.5);
-		Size = UFO(280, 120);
+		Size = UFO(356, 148);
 		BackgroundColor3 = Library.Theme.Surface;
 		BorderSizePixel = 0;
 		ZIndex = 50;
@@ -2705,34 +2760,81 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 	Add("UIShadow", { Parent = Card; BlurRadius = UD(0, 24); Spread = UFO(6, 6); Transparency = 0.55; })
 	Add("UICorner", { Parent = Card; CornerRadius = UD(0, 8); })
 	Add("UIStroke", { Parent = Card; ApplyStrokeMode = ASM.Border; Color = Library.Theme.Border; })
-	Add("TextLabel", {
+	local BrandEdge = Add("Frame", {
 		Parent = Card;
+		Size = UD2(1, 0, 0, 2);
+		BackgroundColor3 = Library.Theme.Accent;
+		BorderSizePixel = 0;
+		ZIndex = 51;
+	})
+	Add("UIGradient", {
+		Parent = BrandEdge;
+		Color = CS{ CSK(0, Library.Theme.AccentDark), CSK(0.52, RGB(244, 250, 255)), CSK(1, Library.Theme.Accent) };
+		Rotation = 0;
+	})
+	local LogoImage = ResolveIcon(Props.Logo)
+	local LoadingMarkGlow = Add("ImageLabel", {
+		Parent = Card;
+		Position = UFO(20, 19);
+		Size = UFO(48, 48);
 		BackgroundTransparency = 1;
-		Position = UFO(0, 28);
-		Size = UD2(1, 0, 0, 22);
-		FontFace = FN("rbxassetid://12187365364", FW.SemiBold, FS.Normal);
-		Text = Props.Title;
-		TextColor3 = Library.Theme.Text;
-		TextSize = 18;
+		Image = LogoImage;
+		ImageColor3 = Library.Theme.Accent;
+		ImageTransparency = 0.3;
+		ScaleType = SCL.Fit;
+		ZIndex = 52;
+	})
+	local LoadingMark = Add("ImageLabel", {
+		Parent = Card;
+		Position = UFO(21, 20);
+		Size = UFO(45, 45);
+		BackgroundTransparency = 1;
+		Image = LogoImage;
+		ImageColor3 = RGB(248, 251, 255);
+		ScaleType = SCL.Fit;
+		ZIndex = 53;
 	})
 	Add("TextLabel", {
 		Parent = Card;
 		BackgroundTransparency = 1;
-		Position = UFO(0, 54);
-		Size = UD2(1, 0, 0, 18);
+		Position = UFO(76, 25);
+		Size = UD2(1, -94, 0, 25);
+		FontFace = FN("rbxassetid://12187365364", FW.SemiBold, FS.Normal);
+		Text = Props.Title;
+		TextColor3 = Library.Theme.Text;
+		TextSize = 20;
+		TextXAlignment = TXA.Left;
+	})
+	Add("TextLabel", {
+		Parent = Card;
+		BackgroundTransparency = 1;
+		Position = UFO(78, 49);
+		Size = UD2(1, -96, 0, 12);
+		FontFace = FN("rbxassetid://12187365364", FW.Bold, FS.Normal);
+		Text = string.upper(tostring(Props.BrandLabel));
+		TextColor3 = Library.Theme.Accent;
+		TextSize = 8;
+		TextXAlignment = TXA.Left;
+	})
+	Add("TextLabel", {
+		Parent = Card;
+		BackgroundTransparency = 1;
+		Position = UFO(22, 86);
+		Size = UD2(1, -44, 0, 18);
 		FontFace = FN("rbxassetid://12187365364", FW.SemiBold, FS.Normal);
 		Text = Props.Subtitle;
 		TextColor3 = Library.Theme.Text;
 		TextTransparency = 0.45;
 		TextSize = 13;
+		TextXAlignment = TXA.Left;
 	})
 	local BarBG = Add("Frame", {
 		Parent = Card;
 		BackgroundColor3 = Library.Theme.SurfaceAlt;
 		BorderSizePixel = 0;
-		Position = UD2(0.5, 0, 1, -28);
+		Position = UD2(0.5, 0, 1, -25);
 		AnchorPoint = V2(0.5, 0);
-		Size = UD2(0.7, 0, 0, 6);
+		Size = UD2(1, -44, 0, 5);
 	})
 	Add("UICorner", { Parent = BarBG; CornerRadius = UD(1, 0); })
 	local Bar = Add("Frame", {
@@ -2756,6 +2858,8 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 		for _, D in Card:GetDescendants() do
 			if D:IsA("TextLabel") then
 				Tween(D, { TextTransparency = 1 }, 0.25)
+			elseif D:IsA("ImageLabel") then
+				Tween(D, { ImageTransparency = 1 }, 0.25)
 			elseif D:IsA("Frame") and D ~= Card then
 				Tween(D, { BackgroundTransparency = 1 }, 0.25)
 			end
