@@ -122,6 +122,7 @@ local State = {
     TriggerTargets = "Auto",
     -- player/misc
     Fly = false, FlySpeed = 60, WalkSpeed = 16, JumpPower = 50,
+    Fullbright = false, NoFog = false, Grav = 196.2, Noclip = false, ClickTP = false,
 }
 
 -- // Role tracker (multi-signal: remote args, scoreboard names, held tools)
@@ -784,6 +785,155 @@ end })
 local FlyLabel = MoveSec:Label({ Text = "Fly" })
 FlyLabel:Toggle({ State = false; Flag = "Fly"; Callback = function(v) State.Fly = v end })
 FlyLabel:Keybind({ Key = Enum.KeyCode.F; Type = "Toggle"; Flag = "FlyKey"; Callback = function() end })
+
+-- // World helpers (client-side only)
+local Lighting = game:GetService("Lighting")
+local savedLight = nil
+local savedAtmo = {}
+local function tpTo(pos)
+    local c = LocalPlayer.Character
+    local hrp = c and c:FindFirstChild("HumanoidRootPart")
+    if hrp then hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0)) end
+end
+local function charPosOfRole(role)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and effRole(p) == role and p.Character then
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then return hrp.Position end
+        end
+    end
+    return nil
+end
+local function nearestCoinPos()
+    local myChar = LocalPlayer.Character
+    local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myHrp then return nil end
+    local folder = RS:FindFirstChild("Coins")
+    if not folder then return nil end
+    local bestPos, bestD = nil, math.huge
+    for _, objFolder in ipairs(folder:GetChildren()) do
+        for _, coin in ipairs(objFolder:GetChildren()) do
+            local p = nil
+            if coin:IsA("BasePart") then p = coin.Position
+            elseif coin:IsA("Model") then
+                local b = coin:FindFirstChildWhichIsA("BasePart", true)
+                if b then p = b.Position end
+            end
+            if p then
+                local d = (myHrp.Position - p).Magnitude
+                if d < bestD then bestD, bestPos = d, p end
+            end
+        end
+    end
+    return bestPos
+end
+RunService.Stepped:Connect(function()
+    if State.Noclip then
+        local c = LocalPlayer.Character
+        if c then
+            for _, p in ipairs(c:GetDescendants()) do
+                if p:IsA("BasePart") then p.CanCollide = false end
+            end
+        end
+    end
+    if State.Fullbright or State.NoFog then
+        pcall(function()
+            if State.Fullbright then
+                Lighting.Brightness = 2
+                Lighting.ClockTime = 14
+                Lighting.GlobalShadows = false
+                Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+            end
+            if State.NoFog then
+                Lighting.FogEnd = 100000
+                Lighting.FogStart = 0
+                for _, a in ipairs(Lighting:GetDescendants()) do
+                    if a:IsA("Atmosphere") then a.Density = 0 end
+                end
+            end
+        end)
+    end
+end)
+UIS.InputBegan:Connect(function(input, gp)
+    if not State.ClickTP then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+    if not UIS:IsKeyDown(Enum.KeyCode.LeftControl) then return end
+    local cam = getCam()
+    if not cam then return end
+    local ray = cam:ScreenPointToRay(Mouse.X, Mouse.Y)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local myChar = LocalPlayer.Character
+    if myChar then params.FilterDescendantsInstances = { myChar } end
+    local hit = Workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
+    if hit and hit.Position then tpTo(hit.Position) end
+end)
+
+-- World
+local WorldPage = Window:Page({ Icon = "cloud" })
+local WorldSub = WorldPage:SubPage({ Name = "World" })
+local EnvSec = WorldSub:Section({ Name = "Environment"; Side = "Left"; Icon = "sun" })
+local BrightOn = EnvSec:Label({ Text = "Fullbright" })
+BrightOn:Toggle({ State = false; Flag = "Fullbright"; Callback = function(v)
+    State.Fullbright = v
+    if v and not savedLight then
+        savedLight = {
+            Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime,
+            GlobalShadows = Lighting.GlobalShadows, OutdoorAmbient = Lighting.OutdoorAmbient,
+        }
+    elseif not v and savedLight then
+        pcall(function()
+            Lighting.Brightness = savedLight.Brightness
+            Lighting.ClockTime = savedLight.ClockTime
+            Lighting.GlobalShadows = savedLight.GlobalShadows
+            Lighting.OutdoorAmbient = savedLight.OutdoorAmbient
+        end)
+    end
+end })
+local FogOn = EnvSec:Label({ Text = "No fog" })
+FogOn:Toggle({ State = false; Flag = "NoFog"; Callback = function(v)
+    State.NoFog = v
+    if v then
+        savedAtmo = {}
+        for _, a in ipairs(Lighting:GetDescendants()) do
+            if a:IsA("Atmosphere") then savedAtmo[a] = a.Density end
+        end
+    else
+        for a, d in pairs(savedAtmo) do
+            pcall(function() a.Density = d end)
+        end
+        table.clear(savedAtmo)
+        pcall(function() Lighting.FogEnd = 100000 end)
+    end
+end })
+EnvSec:Slider({ Name = "Gravity"; Suffix = ""; Value = 196.2; Min = 0; Max = 500; Increment = 1; Flag = "Grav"; Callback = function(v)
+    State.Grav = v
+    pcall(function() Workspace.Gravity = v end)
+end })
+local MoveSec2 = WorldSub:Section({ Name = "Movement"; Side = "Left"; Icon = "move" })
+local NoclipOn = MoveSec2:Label({ Text = "Noclip" })
+NoclipOn:Toggle({ State = false; Flag = "Noclip"; Callback = function(v) State.Noclip = v end })
+local ClickTpOn = MoveSec2:Label({ Text = "Ctrl+Click teleport" })
+ClickTpOn:Toggle({ State = false; Flag = "ClickTP"; Callback = function(v) State.ClickTP = v end })
+local TpSec = WorldSub:Section({ Name = "Teleports"; Side = "Right"; Icon = "zap" })
+TpSec:Button({ Name = "To murderer"; Callback = function()
+    local pos = charPosOfRole("Murderer")
+    if pos then tpTo(pos) else Lumen.Notify({ Title = "bleed.rest"; Text = "No murderer found"; Duration = 2 }) end
+end })
+TpSec:Button({ Name = "To sheriff"; Callback = function()
+    local pos = charPosOfRole("Sheriff")
+    if pos then tpTo(pos) else Lumen.Notify({ Title = "bleed.rest"; Text = "No sheriff found"; Duration = 2 }) end
+end })
+TpSec:Button({ Name = "To nearest coin"; Callback = function()
+    local pos = nearestCoinPos()
+    if pos then tpTo(pos) else Lumen.Notify({ Title = "bleed.rest"; Text = "No coins found"; Duration = 2 }) end
+end })
+TpSec:Button({ Name = "To lobby"; Callback = function()
+    local lobby = Workspace:FindFirstChild("RegularLobby")
+    local spawn = lobby and lobby:FindFirstChildWhichIsA("SpawnLocation", true)
+    if not spawn then spawn = Workspace:FindFirstChildWhichIsA("SpawnLocation", true) end
+    if spawn then tpTo(spawn.Position) else Lumen.Notify({ Title = "bleed.rest"; Text = "No spawn found"; Duration = 2 }) end
+end })
 
 -- Misc
 local Misc = Window:Page({ Icon = "wrench" })
