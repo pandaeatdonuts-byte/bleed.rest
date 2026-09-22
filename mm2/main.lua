@@ -115,7 +115,7 @@ local State = {
     AimPredict = true, PredictAmt = 100,
     AimPart = "Head", AimTargets = "Auto", AimVisible = true, ShowAimFOV = true,
     -- silent
-    Silent = false, SilentFOV = 100, HitChance = 100, Prediction = "Velocity", ExtraLead = 0.05,
+    Silent = false, SilentFOV = 100, HitChance = 100, ExtraLead = 0.05,
     ShowSilentFOV = true,
     -- trigger
     Trigger = false, TriggerHeld = false, TriggerDelay = 150, TriggerRange = 400,
