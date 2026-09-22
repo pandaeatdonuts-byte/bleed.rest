@@ -60,12 +60,16 @@ local ExtrasR = safeChild(Remotes, "Extras")
 local CustomGames = safeChild(Remotes, "CustomGames")
 local TrapSystem = RS:FindFirstChild("TrapSystem")
 
+local _unpack = table.unpack or unpack
 local function fire(remote, ...)
-    if remote then pcall(function() remote:FireServer(...) end) end
+    if not remote then return end
+    local args = { ... }
+    pcall(function() remote:FireServer(_unpack(args)) end)
 end
 local function invoke(remote, ...)
     if not remote then return nil end
-    local ok, res = pcall(function() return remote:InvokeServer(...) end)
+    local args = { ... }
+    local ok, res = pcall(function() return remote:InvokeServer(_unpack(args)) end)
     return ok and res or nil
 end
 
