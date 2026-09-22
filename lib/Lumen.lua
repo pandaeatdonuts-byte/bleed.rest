@@ -975,11 +975,15 @@ local function SectionBuilder(Container: Frame)
 			if Input.UserInputType ~= UIT.MouseButton1 and Input.UserInputType ~= UIT.Touch then
 				return
 			end
-			if SectionDrag.Active then
-				return
-			end
+		-- bleed.rest: user section reordering disabled (hub layout is fixed).
+		if Library.SectionReorder == false then
+			return
+		end
+		if SectionDrag.Active then
+			return
+		end
 
-			local PressPos = Input.Position
+		local PressPos = Input.Position
 			local MoveConn: RBXScriptConnection?
 			local EndConn: RBXScriptConnection?
 
@@ -2856,6 +2860,7 @@ Library.ConfigExtension = ".json"
 Library.Autoload = nil
 Library.MenuKey = EKC.RightShift
 Library.MenuOpen = true
+Library.SectionReorder = false -- bleed.rest: fixed hub layout, no user section dragging
 Library.Windows = {}
 Library.Auth = {
 	Enabled = false;

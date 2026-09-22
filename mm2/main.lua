@@ -41,12 +41,22 @@ local RS = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local _unpack = table.unpack or unpack
 
 local function getCam()
     return Workspace.CurrentCamera
+end
+-- screen-space mouse (Drawing + viewport math must share one origin)
+local function screenMouse()
+    return UIS:GetMouseLocation()
+end
+local function toScreen(cam, world)
+    local v, on = cam:WorldToViewportPoint(world)
+    local inset = GuiService:GetGuiInset()
+    return Vector2.new(v.X + inset.X, v.Y + inset.Y), on
 end
 
 -- // Remotes (non-blocking: game may still be loading, UI must show regardless)
@@ -101,13 +111,13 @@ local State = {
     ColInnocent = Color3.fromRGB(120, 255, 130), ColArmed = Color3.fromRGB(255, 200, 50),
     -- aimbot
     Aimbot = false, AimHeld = false, AimFOV = 120, AimSmooth = 35,
-    AimPart = "Head", AimTargets = "Murderer", AimVisible = true, ShowAimFOV = true,
+    AimPart = "Head", AimTargets = "Auto", AimVisible = true, ShowAimFOV = true,
     -- silent
     Silent = false, SilentFOV = 100, HitChance = 100, Prediction = "Velocity", ExtraLead = 0.05,
     ShowSilentFOV = true,
     -- trigger
     Trigger = false, TriggerHeld = false, TriggerDelay = 150, TriggerRange = 400,
-    TriggerTargets = "Murderer",
+    TriggerTargets = "Auto",
     -- player/misc
     Fly = false, FlySpeed = 60, WalkSpeed = 16, JumpPower = 50,
 }
@@ -257,7 +267,17 @@ local function rayVisible(cam, from, to, myChar, targetChar)
     if not hit or not hit.Instance then return true end
     return hit.Instance:IsDescendantOf(targetChar)
 end
+local function threatKnown()
+    for _, r in pairs(Roles) do
+        if r == "Murderer" or r == "Sheriff" then return true end
+    end
+    return false
+end
 local function roleAllowed(role, mode)
+    if mode == "Auto" then
+        if threatKnown() then return role == "Murderer" or role == "Sheriff" end
+        return true -- no roles detected yet: anyone alive
+    end
     if mode == "Everyone" then return true end
     if mode == "Murderer" then return role == "Murderer" end
     if mode == "Sheriff" then return role == "Sheriff" end
@@ -283,8 +303,7 @@ local function validTarget(plr, mode, maxDist)
     return char, role, hum
 end
 local function screenPoint(cam, world)
-    local v, onScreen = cam:WorldToViewportPoint(world)
-    return Vector2.new(v.X, v.Y), onScreen, v.Z
+    return toScreen(cam, world)
 end
 local currentAimTarget = nil
 local function bestTarget(cam, mousePos, fovPx, mode, usePart)
@@ -332,16 +351,32 @@ end
 -- // ESP engine
 local hasDrawing = typeof(Drawing) == "table"
 local tracers = {}
-local fovCircle, silentCircle
+local fovCircle, fovRing, silentCircle, silentRing
 if hasDrawing then
     pcall(function()
+        fovRing = Drawing.new("Circle")
+        fovRing.Thickness = 3 fovRing.Filled = false
+        fovRing.Color = Color3.fromRGB(0, 0, 0) fovRing.Transparency = 0.4 fovRing.Visible = false
         fovCircle = Drawing.new("Circle")
         fovCircle.Thickness = 1 fovCircle.Filled = false
         fovCircle.Color = Color3.fromRGB(255, 255, 255) fovCircle.Visible = false
+        silentRing = Drawing.new("Circle")
+        silentRing.Thickness = 3 silentRing.Filled = false
+        silentRing.Color = Color3.fromRGB(0, 0, 0) silentRing.Transparency = 0.4 silentRing.Visible = false
         silentCircle = Drawing.new("Circle")
         silentCircle.Thickness = 1 silentCircle.Filled = false
         silentCircle.Color = Color3.fromRGB(255, 80, 80) silentCircle.Visible = false
     end)
+end
+local function setCircle(pair, ring, show, pos, radius)
+    if pair then
+        pair.Visible = show
+        if show then pair.Position = pos pair.Radius = radius end
+    end
+    if ring then
+        ring.Visible = show
+        if show then ring.Position = pos ring.Radius = radius + 2 end
+    end
 end
 local function getTracer(plr)
     if not hasDrawing then return nil end
@@ -361,7 +396,7 @@ end)
 local function tracerOrigin(cam)
     local vs = cam.ViewportSize
     if State.TracerFrom == "Top" then return Vector2.new(vs.X / 2, 0) end
-    if State.TracerFrom == "Mouse" then return Vector2.new(Mouse.X, Mouse.Y) end
+    if State.TracerFrom == "Mouse" then return screenMouse() end
     return Vector2.new(vs.X / 2, vs.Y)
 end
 local function ensureTag(char)
@@ -412,24 +447,10 @@ local lastTriggerShot = 0
 RunService.RenderStepped:Connect(function()
     local cam = getCam()
     if not cam then return end
-    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    local mousePos = screenMouse()
     -- fov circles
-    if fovCircle then
-        local show = State.ShowAimFOV and State.Aimbot
-        fovCircle.Visible = show
-        if show then
-            fovCircle.Position = mousePos
-            fovCircle.Radius = State.AimFOV
-        end
-    end
-    if silentCircle then
-        local show = State.ShowSilentFOV and State.Silent
-        silentCircle.Visible = show
-        if show then
-            silentCircle.Position = mousePos
-            silentCircle.Radius = State.SilentFOV
-        end
-    end
+    setCircle(fovCircle, fovRing, State.ShowAimFOV and State.Aimbot, mousePos, State.AimFOV)
+    setCircle(silentCircle, silentRing, State.ShowSilentFOV and State.Silent, mousePos, State.SilentFOV)
     -- per-player visuals
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
@@ -538,7 +559,7 @@ UIS.InputBegan:Connect(function(input, gp)
     if math.random(1, 100) > State.HitChance then return end
     local cam = getCam()
     if not cam then return end
-    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    local mousePos = screenMouse()
     local plr, char, part = bestTarget(cam, mousePos, State.SilentFOV, State.AimTargets, State.AimPart)
     if plr and part then
         local aimAt = predictPos(part)
@@ -566,11 +587,26 @@ AimOn:Keybind({ Key = Enum.UserInputType.MouseButton2; Type = "Hold"; Flag = "Ai
 AimSec:Slider({ Name = "FOV"; Suffix = " px"; Value = 120; Min = 10; Max = 400; Increment = 5; Flag = "AimFOV"; Callback = function(v) State.AimFOV = v end })
 AimSec:Slider({ Name = "Smoothness"; Suffix = "%"; Value = 35; Min = 0; Max = 95; Increment = 1; Flag = "AimSmooth"; Callback = function(v) State.AimSmooth = v end })
 AimSec:Dropdown({ Name = "Target part"; Options = { "Head", "Torso", "HumanoidRootPart", "Random" }; Value = "Head"; Flag = "AimPart"; Callback = function(v) State.AimPart = v end })
-AimSec:Dropdown({ Name = "Targets"; Options = { "Murderer", "Murderer + Sheriff", "Sheriff", "Everyone" }; Value = "Murderer"; Flag = "AimTargets"; Callback = function(v) State.AimTargets = v end })
+AimSec:Dropdown({ Name = "Targets"; Options = { "Auto", "Murderer", "Murderer + Sheriff", "Sheriff", "Everyone" }; Value = "Auto"; Flag = "AimTargets"; Callback = function(v) State.AimTargets = v end })
 local VisCheck = AimSec:Label({ Text = "Visible check" })
 VisCheck:Toggle({ State = true; Flag = "AimVisible"; Callback = function(v) State.AimVisible = v end })
 local ShowFov = AimSec:Label({ Text = "Show FOV" })
 ShowFov:Toggle({ State = true; Flag = "ShowAimFOV"; Callback = function(v) State.ShowAimFOV = v end })
+local AimStatus = AimSec:Paragraph({ Title = "Status"; Body = "Detecting roles..." })
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            local m, s = "?", "?"
+            for _, p in ipairs(Players:GetPlayers()) do
+                local r = Roles[p.UserId]
+                if r == "Murderer" then m = p.DisplayName
+                elseif r == "Sheriff" then s = p.DisplayName end
+            end
+            AimStatus:SetBody("Murderer: " .. m .. "   Sheriff: " .. s)
+        end)
+    end
+end)
 
 local SilSec = AimPage:Section({ Name = "Silent Aim"; Side = "Right"; Icon = "zap" })
 local SilOn = SilSec:Label({ Text = "Enable silent aim" })
@@ -590,7 +626,7 @@ TrigOn:Toggle({ State = false; Flag = "Trigger"; Callback = function(v) State.Tr
 TrigOn:Keybind({ Key = Enum.UserInputType.MouseButton2; Type = "Hold"; Flag = "TriggerKey"; Callback = function(v) State.TriggerHeld = v end })
 TrigSec:Slider({ Name = "Delay"; Suffix = " ms"; Value = 150; Min = 0; Max = 500; Increment = 10; Flag = "TriggerDelay"; Callback = function(v) State.TriggerDelay = v end })
 TrigSec:Slider({ Name = "Max range"; Suffix = " studs"; Value = 400; Min = 20; Max = 2000; Increment = 10; Flag = "TriggerRange"; Callback = function(v) State.TriggerRange = v end })
-TrigSec:Dropdown({ Name = "Targets"; Options = { "Murderer", "Murderer + Sheriff", "Sheriff", "Everyone" }; Value = "Murderer"; Flag = "TriggerTargets"; Callback = function(v) State.TriggerTargets = v end })
+TrigSec:Dropdown({ Name = "Targets"; Options = { "Auto", "Murderer", "Murderer + Sheriff", "Sheriff", "Everyone" }; Value = "Auto"; Flag = "TriggerTargets"; Callback = function(v) State.TriggerTargets = v end })
 
 local KillerPage = Combat:SubPage({ Name = "Killer" })
 local KA = KillerPage:Section({ Name = "Kill Aura"; Side = "Left"; Icon = "crosshair" })
