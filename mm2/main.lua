@@ -123,6 +123,13 @@ local State = {
     -- player/misc
     Fly = false, FlySpeed = 60, WalkSpeed = 16, JumpPower = 50,
     Fullbright = false, NoFog = false, Grav = 196.2, Noclip = false, ClickTP = false,
+    AmbientEnabled = false, AmbientColor = Color3.fromRGB(255, 255, 255), OutdoorAmbientColor = Color3.fromRGB(255, 255, 255),
+    BloomEnabled = false, BloomIntensity = 0.5, BloomSize = 24, BloomThreshold = 1,
+    ColorCorrectionEnabled = false, CCTint = Color3.fromRGB(255, 255, 255), CCBrightness = 0, CCContrast = 0, CCSaturation = 0,
+    AtmosphereEnabled = false, AtmosphereColor = Color3.fromRGB(200, 200, 200), AtmosphereDecay = Color3.fromRGB(106, 112, 125), AtmosphereDensity = 0.35, AtmosphereHaze = 0, AtmosphereGlare = 0,
+    TimeEnabled = false, TimeOfDay = 14,
+    FogEnabled = false, FogColor = Color3.fromRGB(192, 192, 192), FogStart = 0, FogEnd = 100000,
+    SkyboxEnabled = false, SkyboxBk = "", SkyboxDn = "", SkyboxFt = "", SkyboxLf = "", SkyboxRt = "", SkyboxUp = "",
 }
 
 -- // Role tracker (multi-signal: remote args, scoreboard names, held tools)
@@ -774,6 +781,175 @@ ClickTpOn:Toggle({ State = false; Flag = "ClickTP"; Callback = function(v) State
 local Lighting = game:GetService("Lighting")
 local savedLight = nil
 local savedAtmo = {}
+local savedWorld = nil
+local worldBloom, worldColorCorrection, worldAtmosphere, worldSky = nil, nil, nil, nil
+
+local function assetUrl(id)
+    id = tostring(id or ""):gsub("%s+", "")
+    if id == "" then return "" end
+    if id:find("^rbxassetid://") or id:find("^http") then return id end
+    return "rbxassetid://" .. id
+end
+
+local function captureWorld()
+    if savedWorld then return end
+    local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+    local sky = Lighting:FindFirstChildOfClass("Sky")
+    savedWorld = {
+        Ambient = Lighting.Ambient,
+        OutdoorAmbient = Lighting.OutdoorAmbient,
+        Brightness = Lighting.Brightness,
+        ClockTime = Lighting.ClockTime,
+        GlobalShadows = Lighting.GlobalShadows,
+        FogColor = Lighting.FogColor,
+        FogStart = Lighting.FogStart,
+        FogEnd = Lighting.FogEnd,
+        Atmosphere = atmosphere,
+        AtmosphereProps = atmosphere and {
+            Color = atmosphere.Color,
+            Decay = atmosphere.Decay,
+            Density = atmosphere.Density,
+            Haze = atmosphere.Haze,
+            Glare = atmosphere.Glare,
+        } or nil,
+        Sky = sky,
+        SkyProps = sky and {
+            SkyboxBk = sky.SkyboxBk,
+            SkyboxDn = sky.SkyboxDn,
+            SkyboxFt = sky.SkyboxFt,
+            SkyboxLf = sky.SkyboxLf,
+            SkyboxRt = sky.SkyboxRt,
+            SkyboxUp = sky.SkyboxUp,
+            CelestialBodiesShown = sky.CelestialBodiesShown,
+            StarCount = sky.StarCount,
+        } or nil,
+    }
+end
+
+local function getManagedEffect(className, current)
+    if current and current.Parent == Lighting then return current end
+    local effect = Instance.new(className)
+    effect.Name = "bleed_rest_" .. className
+    effect.Parent = Lighting
+    return effect
+end
+
+local function restoreWorld()
+    if not savedWorld then return end
+    pcall(function()
+        Lighting.Ambient = savedWorld.Ambient
+        Lighting.OutdoorAmbient = savedWorld.OutdoorAmbient
+        Lighting.Brightness = savedWorld.Brightness
+        Lighting.ClockTime = savedWorld.ClockTime
+        Lighting.GlobalShadows = savedWorld.GlobalShadows
+        Lighting.FogColor = savedWorld.FogColor
+        Lighting.FogStart = savedWorld.FogStart
+        Lighting.FogEnd = savedWorld.FogEnd
+    end)
+    if savedWorld.Atmosphere and savedWorld.Atmosphere.Parent and savedWorld.AtmosphereProps then
+        local props = savedWorld.AtmosphereProps
+        pcall(function()
+            savedWorld.Atmosphere.Color = props.Color
+            savedWorld.Atmosphere.Decay = props.Decay
+            savedWorld.Atmosphere.Density = props.Density
+            savedWorld.Atmosphere.Haze = props.Haze
+            savedWorld.Atmosphere.Glare = props.Glare
+        end)
+    end
+    if savedWorld.Sky and savedWorld.Sky.Parent and savedWorld.SkyProps then
+        local props = savedWorld.SkyProps
+        pcall(function()
+            savedWorld.Sky.SkyboxBk = props.SkyboxBk
+            savedWorld.Sky.SkyboxDn = props.SkyboxDn
+            savedWorld.Sky.SkyboxFt = props.SkyboxFt
+            savedWorld.Sky.SkyboxLf = props.SkyboxLf
+            savedWorld.Sky.SkyboxRt = props.SkyboxRt
+            savedWorld.Sky.SkyboxUp = props.SkyboxUp
+            savedWorld.Sky.CelestialBodiesShown = props.CelestialBodiesShown
+            savedWorld.Sky.StarCount = props.StarCount
+        end)
+    end
+end
+
+local function worldControlsActive()
+    return State.AmbientEnabled or State.BloomEnabled or State.ColorCorrectionEnabled or State.AtmosphereEnabled or State.TimeEnabled or State.FogEnabled or State.SkyboxEnabled
+end
+
+local function applyWorld()
+    if worldControlsActive() then captureWorld() end
+    if savedWorld then restoreWorld() end
+    pcall(function()
+        if State.AmbientEnabled then
+            Lighting.Ambient = State.AmbientColor
+            Lighting.OutdoorAmbient = State.OutdoorAmbientColor
+        end
+        if State.TimeEnabled then
+            Lighting.ClockTime = State.TimeOfDay
+        end
+        if State.FogEnabled then
+            Lighting.FogColor = State.FogColor
+            Lighting.FogStart = State.FogStart
+            Lighting.FogEnd = State.FogEnd
+        end
+    end)
+    if State.BloomEnabled then
+        worldBloom = getManagedEffect("BloomEffect", worldBloom)
+        pcall(function()
+            worldBloom.Enabled = true
+            worldBloom.Intensity = State.BloomIntensity
+            worldBloom.Size = State.BloomSize
+            worldBloom.Threshold = State.BloomThreshold
+        end)
+    elseif worldBloom then
+        pcall(function() worldBloom.Enabled = false end)
+    end
+    if State.ColorCorrectionEnabled then
+        worldColorCorrection = getManagedEffect("ColorCorrectionEffect", worldColorCorrection)
+        pcall(function()
+            worldColorCorrection.Enabled = true
+            worldColorCorrection.TintColor = State.CCTint
+            worldColorCorrection.Brightness = State.CCBrightness
+            worldColorCorrection.Contrast = State.CCContrast
+            worldColorCorrection.Saturation = State.CCSaturation
+        end)
+    elseif worldColorCorrection then
+        pcall(function() worldColorCorrection.Enabled = false end)
+    end
+    if State.AtmosphereEnabled then
+        worldAtmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or worldAtmosphere
+        worldAtmosphere = getManagedEffect("Atmosphere", worldAtmosphere)
+        pcall(function()
+            worldAtmosphere.Color = State.AtmosphereColor
+            worldAtmosphere.Decay = State.AtmosphereDecay
+            worldAtmosphere.Density = State.AtmosphereDensity
+            worldAtmosphere.Haze = State.AtmosphereHaze
+            worldAtmosphere.Glare = State.AtmosphereGlare
+        end)
+    elseif worldAtmosphere and savedWorld and not savedWorld.Atmosphere then
+        pcall(function() worldAtmosphere:Destroy() end)
+        worldAtmosphere = nil
+    end
+    if State.SkyboxEnabled then
+        worldSky = Lighting:FindFirstChildOfClass("Sky") or worldSky
+        worldSky = getManagedEffect("Sky", worldSky)
+        pcall(function()
+            worldSky.SkyboxBk = assetUrl(State.SkyboxBk)
+            worldSky.SkyboxDn = assetUrl(State.SkyboxDn)
+            worldSky.SkyboxFt = assetUrl(State.SkyboxFt)
+            worldSky.SkyboxLf = assetUrl(State.SkyboxLf)
+            worldSky.SkyboxRt = assetUrl(State.SkyboxRt)
+            worldSky.SkyboxUp = assetUrl(State.SkyboxUp)
+        end)
+    elseif worldSky and savedWorld and not savedWorld.Sky then
+        pcall(function() worldSky:Destroy() end)
+        worldSky = nil
+    end
+    if not worldControlsActive() then
+        restoreWorld()
+        savedWorld = nil
+    end
+end
+
 -- fly rig
 local flyBV, flyBG = nil, nil
 setFly = function(on)
@@ -878,6 +1054,9 @@ RunService.Stepped:Connect(function()
             end
         end)
     end
+    if worldControlsActive() then
+        applyWorld()
+    end
 end)
 UIS.InputBegan:Connect(function(input, gp)
     if not State.ClickTP then return end
@@ -913,6 +1092,7 @@ BrightOn:Toggle({ State = false; Flag = "Fullbright"; Callback = function(v)
             Lighting.GlobalShadows = savedLight.GlobalShadows
             Lighting.OutdoorAmbient = savedLight.OutdoorAmbient
         end)
+        applyWorld()
     end
 end })
 local FogOn = EnvSec:Label({ Text = "No fog" })
@@ -930,6 +1110,7 @@ FogOn:Toggle({ State = false; Flag = "NoFog"; Callback = function(v)
             end
             table.clear(savedAtmo)
             pcall(function() Lighting.FogEnd = 100000 end)
+            applyWorld()
         end
     end
 end })
@@ -937,6 +1118,61 @@ EnvSec:Slider({ Name = "Gravity"; Suffix = ""; Value = 196.2; Min = 0; Max = 500
     State.Grav = v
     pcall(function() Workspace.Gravity = v end)
 end })
+local AmbOn = EnvSec:Label({ Text = "Ambient override" })
+AmbOn:Toggle({ State = false; Flag = "AmbientEnabled"; Callback = function(v) State.AmbientEnabled = v; applyWorld() end })
+local AmbCol = EnvSec:Label({ Text = "Ambient" })
+AmbCol:Colorpicker({ Color = Color3.fromRGB(255, 255, 255); Flag = "AmbientColor"; Callback = function(v) State.AmbientColor = v; applyWorld() end })
+local OutdoorAmbCol = EnvSec:Label({ Text = "Outdoor ambient" })
+OutdoorAmbCol:Colorpicker({ Color = Color3.fromRGB(255, 255, 255); Flag = "OutdoorAmbientColor"; Callback = function(v) State.OutdoorAmbientColor = v; applyWorld() end })
+local TimeOn = EnvSec:Label({ Text = "Time of day override" })
+TimeOn:Toggle({ State = false; Flag = "TimeEnabled"; Callback = function(v) State.TimeEnabled = v; applyWorld() end })
+EnvSec:Slider({ Name = "Clock time"; Suffix = "h"; Value = 14; Min = 0; Max = 24; Increment = 0.25; Flag = "TimeOfDay"; Callback = function(v) State.TimeOfDay = v; applyWorld() end })
+
+local BloomSec = WorldSub:Section({ Name = "Bloom"; Side = "Right"; Icon = "sparkles" })
+local BloomOn = BloomSec:Label({ Text = "Bloom override" })
+BloomOn:Toggle({ State = false; Flag = "BloomEnabled"; Callback = function(v) State.BloomEnabled = v; applyWorld() end })
+BloomSec:Slider({ Name = "Intensity"; Suffix = ""; Value = 0.5; Min = 0; Max = 10; Increment = 0.1; Flag = "BloomIntensity"; Callback = function(v) State.BloomIntensity = v; applyWorld() end })
+BloomSec:Slider({ Name = "Size"; Suffix = ""; Value = 24; Min = 0; Max = 56; Increment = 1; Flag = "BloomSize"; Callback = function(v) State.BloomSize = v; applyWorld() end })
+BloomSec:Slider({ Name = "Threshold"; Suffix = ""; Value = 1; Min = 0; Max = 5; Increment = 0.1; Flag = "BloomThreshold"; Callback = function(v) State.BloomThreshold = v; applyWorld() end })
+
+local CCSec = WorldSub:Section({ Name = "Color Correction"; Side = "Left"; Icon = "palette" })
+local CCOn = CCSec:Label({ Text = "Color correction override" })
+CCOn:Toggle({ State = false; Flag = "ColorCorrectionEnabled"; Callback = function(v) State.ColorCorrectionEnabled = v; applyWorld() end })
+local CCTint = CCSec:Label({ Text = "Tint" })
+CCTint:Colorpicker({ Color = Color3.fromRGB(255, 255, 255); Flag = "CCTint"; Callback = function(v) State.CCTint = v; applyWorld() end })
+CCSec:Slider({ Name = "Brightness"; Suffix = ""; Value = 0; Min = -1; Max = 1; Increment = 0.05; Flag = "CCBrightness"; Callback = function(v) State.CCBrightness = v; applyWorld() end })
+CCSec:Slider({ Name = "Contrast"; Suffix = ""; Value = 0; Min = -1; Max = 1; Increment = 0.05; Flag = "CCContrast"; Callback = function(v) State.CCContrast = v; applyWorld() end })
+CCSec:Slider({ Name = "Saturation"; Suffix = ""; Value = 0; Min = -1; Max = 1; Increment = 0.05; Flag = "CCSaturation"; Callback = function(v) State.CCSaturation = v; applyWorld() end })
+
+local AtmoSec = WorldSub:Section({ Name = "Atmosphere"; Side = "Right"; Icon = "cloud" })
+local AtmoOn = AtmoSec:Label({ Text = "Atmosphere override" })
+AtmoOn:Toggle({ State = false; Flag = "AtmosphereEnabled"; Callback = function(v) State.AtmosphereEnabled = v; applyWorld() end })
+local AtmoColor = AtmoSec:Label({ Text = "Color" })
+AtmoColor:Colorpicker({ Color = Color3.fromRGB(200, 200, 200); Flag = "AtmosphereColor"; Callback = function(v) State.AtmosphereColor = v; applyWorld() end })
+local AtmoDecay = AtmoSec:Label({ Text = "Decay" })
+AtmoDecay:Colorpicker({ Color = Color3.fromRGB(106, 112, 125); Flag = "AtmosphereDecay"; Callback = function(v) State.AtmosphereDecay = v; applyWorld() end })
+AtmoSec:Slider({ Name = "Density"; Suffix = ""; Value = 0.35; Min = 0; Max = 1; Increment = 0.01; Flag = "AtmosphereDensity"; Callback = function(v) State.AtmosphereDensity = v; applyWorld() end })
+AtmoSec:Slider({ Name = "Haze"; Suffix = ""; Value = 0; Min = 0; Max = 10; Increment = 0.1; Flag = "AtmosphereHaze"; Callback = function(v) State.AtmosphereHaze = v; applyWorld() end })
+AtmoSec:Slider({ Name = "Glare"; Suffix = ""; Value = 0; Min = 0; Max = 10; Increment = 0.1; Flag = "AtmosphereGlare"; Callback = function(v) State.AtmosphereGlare = v; applyWorld() end })
+
+local FogSec = WorldSub:Section({ Name = "Fog"; Side = "Left"; Icon = "cloud-fog" })
+local FogOverride = FogSec:Label({ Text = "Fog override" })
+FogOverride:Toggle({ State = false; Flag = "FogEnabled"; Callback = function(v) State.FogEnabled = v; applyWorld() end })
+local FogCol = FogSec:Label({ Text = "Fog color" })
+FogCol:Colorpicker({ Color = Color3.fromRGB(192, 192, 192); Flag = "FogColor"; Callback = function(v) State.FogColor = v; applyWorld() end })
+FogSec:Slider({ Name = "Fog start"; Suffix = ""; Value = 0; Min = 0; Max = 10000; Increment = 25; Flag = "FogStart"; Callback = function(v) State.FogStart = v; applyWorld() end })
+FogSec:Slider({ Name = "Fog end"; Suffix = ""; Value = 100000; Min = 0; Max = 100000; Increment = 100; Flag = "FogEnd"; Callback = function(v) State.FogEnd = v; applyWorld() end })
+
+local SkySec = WorldSub:Section({ Name = "Skybox"; Side = "Right"; Icon = "image" })
+local SkyOn = SkySec:Label({ Text = "Skybox override" })
+SkyOn:Toggle({ State = false; Flag = "SkyboxEnabled"; Callback = function(v) State.SkyboxEnabled = v; applyWorld() end })
+SkySec:Input({ Name = "Back asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxBk"; Callback = function(v) State.SkyboxBk = v; applyWorld() end })
+SkySec:Input({ Name = "Down asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxDn"; Callback = function(v) State.SkyboxDn = v; applyWorld() end })
+SkySec:Input({ Name = "Front asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxFt"; Callback = function(v) State.SkyboxFt = v; applyWorld() end })
+SkySec:Input({ Name = "Left asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxLf"; Callback = function(v) State.SkyboxLf = v; applyWorld() end })
+SkySec:Input({ Name = "Right asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxRt"; Callback = function(v) State.SkyboxRt = v; applyWorld() end })
+SkySec:Input({ Name = "Up asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxUp"; Callback = function(v) State.SkyboxUp = v; applyWorld() end })
+
 local TpSec = WorldSub:Section({ Name = "Teleports"; Side = "Right"; Icon = "zap" })
 TpSec:Button({ Name = "To murderer"; Callback = function()
     local pos = charPosOfRole("Murderer")
@@ -962,3 +1198,4 @@ if getgenv then getgenv().bleed_rest_loaded = function() pcall(function() Lumen.
 Lumen:BuildConfigPage(Window)
 Lumen.ToggleMenu(true)
 Lumen.Notify({ Title = "bleed.rest"; Text = "Loaded (RightShift to toggle)"; Type = "Success"; Duration = 3 })
+
