@@ -110,7 +110,9 @@ local State = {
     ColMurderer = Color3.fromRGB(255, 50, 50), ColSheriff = Color3.fromRGB(80, 140, 255),
     ColInnocent = Color3.fromRGB(120, 255, 130), ColArmed = Color3.fromRGB(255, 200, 50),
     -- aimbot
-    Aimbot = false, AimHeld = false, AimFOV = 120, AimSmooth = 35,
+    Aimbot = false, AimHeld = false, AimFOV = 120, AimMode = "Mouse",
+    AimSens = 1.0, AimSmoothX = 6, AimSmoothY = 6, AimSmooth = 35,
+    AimPredict = true, PredictAmt = 100,
     AimPart = "Head", AimTargets = "Auto", AimVisible = true, ShowAimFOV = true,
     -- silent
     Silent = false, SilentFOV = 100, HitChance = 100, Prediction = "Velocity", ExtraLead = 0.05,
@@ -228,8 +230,10 @@ local function getPing()
     return n
 end
 local function leadTime()
-    if State.Prediction == "Off" then return 0 end
-    return getPing() + (State.ExtraLead or 0)
+    if not State.AimPredict then return 0 end
+    local scale = (State.PredictAmt or 100) / 100
+    if scale <= 0 then return 0 end
+    return (getPing() + (State.ExtraLead or 0)) * scale
 end
 local function aimPartOf(char, mode)
     if not char then return nil end
@@ -444,6 +448,11 @@ end
 
 -- // Main loop: ESP + tracers + aimbot + trigger
 local lastTriggerShot = 0
+local hasMouseMove = typeof(mousemoverel) == "function"
+local function round6(v)
+    if v >= 0 then return math.floor(v + 0.5) end
+    return math.ceil(v - 0.5)
+end
 RunService.RenderStepped:Connect(function()
     local cam = getCam()
     if not cam then return end
@@ -519,14 +528,24 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
-    -- aimbot (camera lock while key held)
+    -- aimbot (mouse move default, camera lock fallback)
     if State.Aimbot and State.AimHeld then
         local plr, char, part = bestTarget(cam, mousePos, State.AimFOV, State.AimTargets, State.AimPart)
         if plr and part then
             local aimAt = predictPos(part)
             if aimAt then
-                local alpha = math.clamp(1 - (State.AimSmooth / 100), 0.05, 1)
-                cam.CFrame = cam.CFrame:Lerp(CFrame.lookAt(cam.CFrame.Position, aimAt), alpha)
+                if State.AimMode == "Mouse" and hasMouseMove then
+                    local sp = toScreen(cam, aimAt)
+                    local sx = ((sp.X - mousePos.X) / math.max(State.AimSmoothX, 1)) * State.AimSens
+                    local sy = ((sp.Y - mousePos.Y) / math.max(State.AimSmoothY, 1)) * State.AimSens
+                    local ix, iy = round6(sx), round6(sy)
+                    if ix ~= 0 or iy ~= 0 then
+                        pcall(function() mousemoverel(ix, iy) end)
+                    end
+                else
+                    local alpha = math.clamp(1 - (State.AimSmooth / 100), 0.05, 1)
+                    cam.CFrame = cam.CFrame:Lerp(CFrame.lookAt(cam.CFrame.Position, aimAt), alpha)
+                end
             end
         end
     else
@@ -584,8 +603,15 @@ local AimSec = AimPage:Section({ Name = "Aimbot"; Side = "Left"; Icon = "crossha
 local AimOn = AimSec:Label({ Text = "Enable aimbot" })
 AimOn:Toggle({ State = false; Flag = "Aimbot"; Callback = function(v) State.Aimbot = v end })
 AimOn:Keybind({ Key = Enum.UserInputType.MouseButton2; Type = "Hold"; Flag = "AimKey"; Callback = function(v) State.AimHeld = v end })
+AimSec:Dropdown({ Name = "Mode"; Options = { "Mouse", "Camera" }; Value = "Mouse"; Flag = "AimMode"; Callback = function(v) State.AimMode = v end })
 AimSec:Slider({ Name = "FOV"; Suffix = " px"; Value = 120; Min = 10; Max = 400; Increment = 5; Flag = "AimFOV"; Callback = function(v) State.AimFOV = v end })
-AimSec:Slider({ Name = "Smoothness"; Suffix = "%"; Value = 35; Min = 0; Max = 95; Increment = 1; Flag = "AimSmooth"; Callback = function(v) State.AimSmooth = v end })
+AimSec:Slider({ Name = "Sensitivity"; Suffix = "x"; Value = 1.0; Min = 0.1; Max = 3.0; Increment = 0.1; Flag = "AimSens"; Callback = function(v) State.AimSens = v end })
+AimSec:Slider({ Name = "X smoothing"; Suffix = ""; Value = 6; Min = 1; Max = 50; Increment = 1; Flag = "AimSmoothX"; Callback = function(v) State.AimSmoothX = v end })
+AimSec:Slider({ Name = "Y smoothing"; Suffix = ""; Value = 6; Min = 1; Max = 50; Increment = 1; Flag = "AimSmoothY"; Callback = function(v) State.AimSmoothY = v end })
+AimSec:Slider({ Name = "Camera smoothing"; Suffix = "%"; Value = 35; Min = 0; Max = 95; Increment = 1; Flag = "AimSmooth"; Callback = function(v) State.AimSmooth = v end })
+local PredOn = AimSec:Label({ Text = "Prediction" })
+PredOn:Toggle({ State = true; Flag = "AimPredict"; Callback = function(v) State.AimPredict = v end })
+AimSec:Slider({ Name = "Prediction amount"; Suffix = "%"; Value = 100; Min = 0; Max = 200; Increment = 5; Flag = "PredictAmt"; Callback = function(v) State.PredictAmt = v end })
 AimSec:Dropdown({ Name = "Target part"; Options = { "Head", "Torso", "HumanoidRootPart", "Random" }; Value = "Head"; Flag = "AimPart"; Callback = function(v) State.AimPart = v end })
 AimSec:Dropdown({ Name = "Targets"; Options = { "Auto", "Murderer", "Murderer + Sheriff", "Sheriff", "Everyone" }; Value = "Auto"; Flag = "AimTargets"; Callback = function(v) State.AimTargets = v end })
 local VisCheck = AimSec:Label({ Text = "Visible check" })
@@ -613,8 +639,8 @@ local SilOn = SilSec:Label({ Text = "Enable silent aim" })
 SilOn:Toggle({ State = false; Flag = "Silent"; Callback = function(v) State.Silent = v end })
 SilSec:Slider({ Name = "FOV"; Suffix = " px"; Value = 100; Min = 10; Max = 400; Increment = 5; Flag = "SilentFOV"; Callback = function(v) State.SilentFOV = v end })
 SilSec:Slider({ Name = "Hit chance"; Suffix = "%"; Value = 100; Min = 1; Max = 100; Increment = 1; Flag = "HitChance"; Callback = function(v) State.HitChance = v end })
-SilSec:Dropdown({ Name = "Prediction"; Options = { "Velocity", "Off" }; Value = "Velocity"; Flag = "Prediction"; Callback = function(v) State.Prediction = v end })
 SilSec:Slider({ Name = "Extra lead"; Suffix = "s"; Value = 0.05; Min = 0; Max = 0.5; Increment = 0.01; Flag = "ExtraLead"; Callback = function(v) State.ExtraLead = v end })
+SilSec:Paragraph({ Title = "Note"; Body = "Uses the aimbot Prediction toggle + amount above." })
 local ShowSilFov = SilSec:Label({ Text = "Show FOV" })
 ShowSilFov:Toggle({ State = true; Flag = "ShowSilentFOV"; Callback = function(v) State.ShowSilentFOV = v end })
 SilSec:Paragraph({ Title = "How it works"; Body = "On every shot, rolls hit chance then micro-snaps the camera to the predicted target for one frame." })
