@@ -761,7 +761,7 @@ local FlyLabel = MoveSec:Label({ Text = "Fly" })
 local setFly -- forward: defined in world helpers below
 FlyLabel:Toggle({ State = false; Flag = "Fly"; Callback = function(v)
     State.Fly = v
-    setFly(v)
+    if setFly then setFly(v) end
 end })
 FlyLabel:Keybind({ Key = Enum.KeyCode.F; Type = "Toggle"; Flag = "FlyKey"; Callback = function() end })
 MoveSec:Slider({ Name = "Fly speed"; Suffix = ""; Value = 60; Min = 10; Max = 250; Increment = 5; Flag = "FlySpeed"; Callback = function(v) State.FlySpeed = v end })
@@ -924,11 +924,13 @@ FogOn:Toggle({ State = false; Flag = "NoFog"; Callback = function(v)
             if a:IsA("Atmosphere") then savedAtmo[a] = a.Density end
         end
     else
-        for a, d in pairs(savedAtmo) do
-            pcall(function() a.Density = d end)
+        if next(savedAtmo) ~= nil then
+            for a, d in pairs(savedAtmo) do
+                pcall(function() a.Density = d end)
+            end
+            table.clear(savedAtmo)
+            pcall(function() Lighting.FogEnd = 100000 end)
         end
-        table.clear(savedAtmo)
-        pcall(function() Lighting.FogEnd = 100000 end)
     end
 end })
 EnvSec:Slider({ Name = "Gravity"; Suffix = ""; Value = 196.2; Min = 0; Max = 500; Increment = 1; Flag = "Grav"; Callback = function(v)
