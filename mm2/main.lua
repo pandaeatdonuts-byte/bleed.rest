@@ -1166,6 +1166,62 @@ FogSec:Slider({ Name = "Fog end"; Suffix = ""; Value = 100000; Min = 0; Max = 10
 local SkySec = WorldSub:Section({ Name = "Skybox"; Side = "Right"; Icon = "image" })
 local SkyOn = SkySec:Label({ Text = "Skybox override" })
 SkyOn:Toggle({ State = false; Flag = "SkyboxEnabled"; Callback = function(v) State.SkyboxEnabled = v; applyWorld() end })
+local SkyboxPresets = {
+    ["Classic Blue"] = {
+        "271042516", "271077243", "271042556", "271042310", "271042467", "271077958",
+    },
+    ["Warm Interior"] = {
+        "162001887", "161998893", "162001897", "162001904", "162001919", "162001926",
+    },
+    ["Sunset"] = {
+        "323494035", "323494368", "323494130", "323494252", "323494067", "323493360",
+    },
+    ["Red Night"] = {
+        "401664839", "401664862", "401664960", "401664881", "401664901", "401664936",
+    },
+    ["Orange Sunset"] = {
+        "458016711", "458016826", "458016532", "458016655", "458016782", "458016792",
+    },
+    ["Night"] = {
+        "15470149279", "15470151245", "15470153860", "15470155938", "15470158022", "15470160563",
+    },
+    ["Galaxy"] = {
+        "159454299", "159454296", "159454293", "159454286", "159454300", "159454288",
+    },
+    ["Purple Space"] = {
+        "14543264135", "14543358958", "14543257810", "14543275895", "14543280890", "14543371676",
+    },
+    ["Spring"] = {
+        "12216109205", "12216109875", "12216109489", "12216110170", "12216110471", "12216108877",
+    },
+    ["Beach Cloudy"] = {
+        "125067016223038", "92271588990078", "123041572863662", "112713940757545", "134783689249068", "138659726817305",
+    },
+    ["Beach Parking"] = {
+        "91970493661089", "70755555055104", "72267757354285", "120452757655371", "105981014339947", "104044841574911",
+    },
+    ["Belfast Farmhouse"] = {
+        "115324744121944", "88950898640266", "71742543735820", "133893021751248", "88068379379339", "126989244212693",
+    },
+    ["Belfast Open Field"] = {
+        "133352059518785", "78972161636066", "128211522618755", "122194691487246", "105942074651229", "112492340176616",
+    },
+    ["Belfast Sunset"] = {
+        "107786237452160", "109953709194446", "100735950859096", "74233469362020", "117169951089259", "113912446184349",
+    },
+}
+SkySec:Dropdown({ Name = "Preset"; Options = {
+    "Custom", "Classic Blue", "Warm Interior", "Sunset", "Red Night", "Orange Sunset",
+    "Night", "Galaxy", "Purple Space", "Spring", "Beach Cloudy", "Beach Parking",
+    "Belfast Farmhouse", "Belfast Open Field", "Belfast Sunset",
+}; Value = "Custom"; Flag = "WorldSkyPreset"; Callback = function(name)
+    local faces = SkyboxPresets[name]
+    if not faces then return end
+    State.SkyboxBk, State.SkyboxDn, State.SkyboxFt = faces[1], faces[2], faces[3]
+    State.SkyboxLf, State.SkyboxRt, State.SkyboxUp = faces[4], faces[5], faces[6]
+    State.SkyboxEnabled = true
+    applyWorld()
+end })
 SkySec:Input({ Name = "Back asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxBk"; Callback = function(v) State.SkyboxBk = v; applyWorld() end })
 SkySec:Input({ Name = "Down asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxDn"; Callback = function(v) State.SkyboxDn = v; applyWorld() end })
 SkySec:Input({ Name = "Front asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxFt"; Callback = function(v) State.SkyboxFt = v; applyWorld() end })
