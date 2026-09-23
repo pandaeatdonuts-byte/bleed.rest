@@ -529,7 +529,7 @@ local line = getTracer(plr)
         end
     end
     
-    if State.Aimbot and State.AimHeld then
+    if State.Aimbot and State.AimHeld and not menuOpen then
         local plr, char, part = bestTarget(cam, mousePos, State.AimFOV, State.AimTargets, State.AimPart)
         if plr and part then
             local aimAt = predictPos(part)
@@ -552,7 +552,7 @@ local line = getTracer(plr)
         if currentAimTarget and not State.AimHeld then currentAimTarget = nil end
     end
     
-    if State.Trigger and State.TriggerHeld then
+    if State.Trigger and State.TriggerHeld and not menuOpen then
         local t = Mouse.Target
         if t then
             local model = t:FindFirstAncestorOfClass("Model")
@@ -574,6 +574,7 @@ end))
 
 track(UIS.InputBegan:Connect(function(input, gp)
     if not State.Silent then return end
+    if Lumen.MenuOpen == true then return end
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     if math.random(1, 100) > State.HitChance then return end
     local cam = getCam()
@@ -811,6 +812,9 @@ FovOn:Toggle({ State = false; Flag = "FovOverride"; Callback = function(v)
     if v and not savedFov then
         local cam = getCam()
         if cam then savedFov = cam.FieldOfView end
+    elseif not v and savedFov then
+        local cam = getCam()
+        if cam then pcall(function() cam.FieldOfView = savedFov end) end
     end
     State.FovOverride = v
 end })
@@ -855,6 +859,7 @@ track(RunService.RenderStepped:Connect(function(dt)
 end))
 track(UIS.InputBegan:Connect(function(input, gp)
     if not State.SuperJump then return end
+    if Lumen.MenuOpen == true then return end
     if input.KeyCode ~= Enum.KeyCode.Space then return end
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
