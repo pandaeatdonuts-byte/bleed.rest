@@ -121,7 +121,7 @@ ColFill = Color3.fromRGB(255, 255, 255), ColOutline = Color3.fromRGB(255, 255, 2
     Aimbot = false, AimHeld = false, AimFOV = 120, AimMode = "Mouse",
     AimSens = 1.0, AimSmoothX = 6, AimSmoothY = 6, AimSmooth = 35,
     AimPredict = true, PredictAmt = 100,
-    AimPart = "Head", AimTargets = "Auto", AimVisible = true, ShowAimFOV = true,
+    AimPart = "Head", AimTargets = "Auto", AimVisible = true, ShowAimFOV = true, Wallbang = false,
     
     Silent = false, SilentFOV = 100, HitChance = 100, ExtraLead = 0.05,
     ShowSilentFOV = true,
@@ -371,7 +371,7 @@ local function bestTarget(cam, mousePos, fovPx, mode, usePart)
                 if on then
                     local d = (sp - mousePos).Magnitude
                     if d <= bestD then
-                        if not State.AimVisible or rayVisible(cam, cam.CFrame.Position, part.Position, myChar, char) then
+                        if State.Wallbang or not State.AimVisible or rayVisible(cam, cam.CFrame.Position, part.Position, myChar, char) then
                             best, bestChar, bestPart, bestRole, bestD = plr, char, part, role, d
                         end
                     end
@@ -690,6 +690,8 @@ AimSec:Dropdown({ Name = "Target part"; Options = { "Head", "Torso", "HumanoidRo
 AimSec:Dropdown({ Name = "Targets"; Options = { "Auto", "Murderer", "Murderer + Sheriff", "Sheriff", "Everyone" }; Value = "Auto"; Flag = "AimTargets"; Callback = function(v) State.AimTargets = v end })
 local VisCheck = AimSec:Label({ Text = "Visible check" })
 VisCheck:Toggle({ State = true; Flag = "AimVisible"; Callback = function(v) State.AimVisible = v end })
+local WbOn = AimSec:Label({ Text = "Wallbang (ignore walls)" })
+WbOn:Toggle({ State = false; Flag = "Wallbang"; Callback = function(v) State.Wallbang = v end })
 local ShowFov = AimSec:Label({ Text = "Show FOV" })
 ShowFov:Toggle({ State = true; Flag = "ShowAimFOV"; Callback = function(v) State.ShowAimFOV = v end })
 local AimStatus = AimSec:Paragraph({ Title = "Status"; Body = "Detecting roles..." })
