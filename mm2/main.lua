@@ -114,8 +114,8 @@ local State = {
     Tracer = false, TracerFrom = "Bottom", TracerThick = 1,
     EspMaxDist = 600, ShowInnocents = true, ShowDead = false,
     ChamsFill = 0.6, ChamsTop = true,
-    ColFill = Color3.fromRGB(255, 255, 255), ColOutline = Color3.fromRGB(255, 255, 255),
-    MurderESP = true, SheriffESP = true,
+ColFill = Color3.fromRGB(255, 255, 255), ColOutline = Color3.fromRGB(255, 255, 255),
+    MurderESP = true, SheriffESP = true, RoleMode = "Always",
     
     Aimbot = false, AimHeld = false, AimFOV = 120, AimMode = "Mouse",
     AimSens = 1.0, AimSmoothX = 6, AimSmoothY = 6, AimSmooth = 35,
@@ -137,6 +137,12 @@ local State = {
     TimeEnabled = false, TimeOfDay = 14,
     FogEnabled = false, FogColor = Color3.fromRGB(192, 192, 192), FogStart = 0, FogEnd = 100000,
     SkyboxEnabled = false, SkyboxBk = "", SkyboxDn = "", SkyboxFt = "", SkyboxLf = "", SkyboxRt = "", SkyboxUp = "",
+    FovOverride = false, FovValue = 70,
+    ThirdPerson = false, TpDist = 12, TpHeight = 4,
+    SuperJump = false, SuperJumpPower = 200,
+    AntiAfk = false,
+    AutoClick = false, ClickerMs = 100,
+    Spinbot = false, SpinSpeed = 80,
 }
 
 
@@ -174,9 +180,13 @@ local function isAlive(plr)
     if a == nil then return true end
     return a == true
 end
-local function toolRole(char)
-    if not char then return nil end
-    local tool = char:FindFirstChildWhichIsA("Tool")
+local function toolRole(plr, scanBackpack)
+    local char = plr and plr.Character
+    local tool = char and char:FindFirstChildWhichIsA("Tool")
+    if not tool and scanBackpack then
+        local bp = plr:FindFirstChild("Backpack")
+        if bp then tool = bp:FindFirstChildWhichIsA("Tool") end
+    end
     if not tool then return nil end
     local n = tool.Name:lower()
     if n:find("knife") then return "Murderer" end
@@ -186,7 +196,7 @@ end
 local function effRole(plr)
     local sig = Roles[plr.UserId]
     if sig then return sig end
-    local t = toolRole(plr.Character)
+    local t = toolRole(plr, State.RoleMode == "Always")
     if t then return t end
     return "Innocent"
 end
@@ -460,12 +470,9 @@ track(RunService.RenderStepped:Connect(function()
     local cam = getCam()
     if not cam then return end
     local mousePos = screenMouse()
-    
-    
     local menuOpen = Lumen.MenuOpen == true
     setCircle(fovCircle, State.ShowAimFOV and State.Aimbot and not menuOpen, mousePos, State.AimFOV)
     setCircle(silentCircle, State.ShowSilentFOV and State.Silent and not menuOpen, mousePos, State.SilentFOV)
-    
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
             local char = plr.Character
@@ -506,7 +513,7 @@ track(RunService.RenderStepped:Connect(function()
                 end
             end
             
-            local line = getTracer(plr)
+local line = getTracer(plr)
             if line then
                 local showLine = showPlayer and State.Tracer and hrp ~= nil and not menuOpen
                 local sp, onScreen = Vector2.new(0, 0), false
@@ -724,7 +731,8 @@ EspSec:Slider({ Name = "Max distance"; Suffix = " studs"; Value = 600; Min = 50;
 EspSec:Slider({ Name = "Chams transparency"; Suffix = ""; Value = 0.6; Min = 0; Max = 1; Increment = 0.05; Flag = "ChamsFill"; Callback = function(v) State.ChamsFill = v end })
 
 local RoleSec = EspPage:Section({ Name = "Roles"; Side = "Right"; Icon = "target" })
-RoleSec:Paragraph({ Title = "Detection"; Body = "Roles auto-detect from round events, scoreboard names and held weapons. Clears every round." })
+RoleSec:Paragraph({ Title = "Detection"; Body = "Roles auto-detect from round events, scoreboard names and weapons. Clears every round." })
+RoleSec:Dropdown({ Name = "Weapon detection"; Options = { "Always", "When held" }; Value = "Always"; Flag = "RoleMode"; Callback = function(v) State.RoleMode = v end })
 local InnoOn = RoleSec:Label({ Text = "Show innocents" })
 InnoOn:Toggle({ State = true; Flag = "ShowInnocents"; Callback = function(v) State.ShowInnocents = v end })
 local DeadOn = RoleSec:Label({ Text = "Show dead" })
@@ -769,12 +777,12 @@ end)
 local PlayerPage = Window:Page({ Icon = "user" })
 local Move = PlayerPage:SubPage({ Name = "Movement" })
 local MoveSec = Move:Section({ Name = "Character"; Side = "Left"; Icon = "move" })
-MoveSec:Slider({ Name = "WalkSpeed"; Suffix = ""; Value = 16; Min = 16; Max = 200; Increment = 1; Flag = "WalkSpeed"; Callback = function(v)
+MoveSec:Slider({ Name = "WalkSpeed"; Suffix = ""; Value = 16; Min = 1; Max = 500; Increment = 1; Flag = "WalkSpeed"; Callback = function(v)
     State.WalkSpeed = v
     local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.WalkSpeed = v end
 end })
-MoveSec:Slider({ Name = "JumpPower"; Suffix = ""; Value = 50; Min = 50; Max = 300; Increment = 5; Flag = "JumpPower"; Callback = function(v)
+MoveSec:Slider({ Name = "JumpPower"; Suffix = ""; Value = 50; Min = 1; Max = 500; Increment = 1; Flag = "JumpPower"; Callback = function(v)
     State.JumpPower = v
     local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.JumpPower = v end
@@ -788,11 +796,100 @@ end })
 FlyLabel:Keybind({ Key = Enum.KeyCode.F; Type = "Toggle"; Flag = "FlyKey"; Callback = function()
     if FlyToggle then FlyToggle.Set() end
 end })
-MoveSec:Slider({ Name = "Fly speed"; Suffix = ""; Value = 60; Min = 10; Max = 250; Increment = 5; Flag = "FlySpeed"; Callback = function(v) State.FlySpeed = v end })
+MoveSec:Slider({ Name = "Fly speed"; Suffix = ""; Value = 60; Min = 1; Max = 500; Increment = 5; Flag = "FlySpeed"; Callback = function(v) State.FlySpeed = v end })
 local NoclipOn = MoveSec:Label({ Text = "Noclip" })
 NoclipOn:Toggle({ State = false; Flag = "Noclip"; Callback = function(v) State.Noclip = v end })
 local ClickTpOn = MoveSec:Label({ Text = "Ctrl+Click teleport" })
 ClickTpOn:Toggle({ State = false; Flag = "ClickTP"; Callback = function(v) State.ClickTP = v end })
+
+local savedFov = nil
+local MiscPage = Window:Page({ Icon = "star" })
+local MiscSub = MiscPage:SubPage({ Name = "Misc" })
+local CamSec = MiscSub:Section({ Name = "Camera"; Side = "Left"; Icon = "settings" })
+local FovOn = CamSec:Label({ Text = "Field of view override" })
+FovOn:Toggle({ State = false; Flag = "FovOverride"; Callback = function(v)
+    if v and not savedFov then
+        local cam = getCam()
+        if cam then savedFov = cam.FieldOfView end
+    end
+    State.FovOverride = v
+end })
+CamSec:Slider({ Name = "FOV"; Suffix = ""; Value = 70; Min = 20; Max = 120; Increment = 1; Flag = "FovValue"; Callback = function(v) State.FovValue = v end })
+local TpOn = CamSec:Label({ Text = "Third person" })
+TpOn:Toggle({ State = false; Flag = "ThirdPerson"; Callback = function(v) State.ThirdPerson = v end })
+CamSec:Slider({ Name = "Distance"; Suffix = ""; Value = 12; Min = 3; Max = 30; Increment = 1; Flag = "TpDist"; Callback = function(v) State.TpDist = v end })
+CamSec:Slider({ Name = "Height"; Suffix = ""; Value = 4; Min = 0; Max = 15; Increment = 0.5; Flag = "TpHeight"; Callback = function(v) State.TpHeight = v end })
+local CharSec = MiscSub:Section({ Name = "Character"; Side = "Right"; Icon = "user" })
+local SjOn = CharSec:Label({ Text = "Super jump" })
+SjOn:Toggle({ State = false; Flag = "SuperJump"; Callback = function(v) State.SuperJump = v end })
+CharSec:Slider({ Name = "Jump power"; Suffix = ""; Value = 200; Min = 50; Max = 500; Increment = 10; Flag = "SuperJumpPower"; Callback = function(v) State.SuperJumpPower = v end })
+local AfkOn = CharSec:Label({ Text = "Anti-AFK" })
+AfkOn:Toggle({ State = false; Flag = "AntiAfk"; Callback = function(v) State.AntiAfk = v end })
+local AcOn = CharSec:Label({ Text = "Auto-clicker" })
+AcOn:Toggle({ State = false; Flag = "AutoClick"; Callback = function(v) State.AutoClick = v end })
+CharSec:Slider({ Name = "Click interval"; Suffix = " ms"; Value = 100; Min = 10; Max = 1000; Increment = 10; Flag = "ClickerMs"; Callback = function(v) State.ClickerMs = v end })
+local SpinOn = CharSec:Label({ Text = "Spinbot" })
+SpinOn:Toggle({ State = false; Flag = "Spinbot"; Callback = function(v) State.Spinbot = v end })
+CharSec:Slider({ Name = "Spin speed"; Suffix = " deg/s"; Value = 80; Min = 10; Max = 500; Increment = 5; Flag = "SpinSpeed"; Callback = function(v) State.SpinSpeed = v end })
+local ServerPar = CharSec:Paragraph({ Title = "Server"; Body = "Players: ?   Ping: ?" })
+CharSec:Button({ Name = "Reset character"; Callback = function()
+    pcall(function()
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Health = 0 end
+    end)
+end })
+
+track(RunService.RenderStepped:Connect(function(dt)
+    local cam = getCam()
+    if not cam then return end
+    if State.FovOverride then cam.FieldOfView = State.FovValue end
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if State.Spinbot and hrp then
+        hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(State.SpinSpeed) * dt, 0)
+    end
+    if State.ThirdPerson and hrp then
+        local look = cam.CFrame.LookVector
+        cam.CFrame = CFrame.new(hrp.Position - look * State.TpDist + Vector3.new(0, State.TpHeight, 0), hrp.Position + Vector3.new(0, 1.5, 0))
+    end
+end))
+track(UIS.InputBegan:Connect(function(input, gp)
+    if not State.SuperJump then return end
+    if input.KeyCode ~= Enum.KeyCode.Space then return end
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then hrp.Velocity = Vector3.new(hrp.Velocity.X, State.SuperJumpPower, hrp.Velocity.Z) end
+end))
+task.spawn(function()
+    while Running and task.wait(60) do
+        if State.AntiAfk then
+            pcall(function()
+                local VU = game:GetService("VirtualUser")
+                VU:CaptureController()
+                VU:ClickButton2(Vector2.new())
+            end)
+        end
+    end
+end)
+task.spawn(function()
+    while Running do
+        if State.AutoClick and not (Lumen.MenuOpen == true) and typeof(mouse1click) == "function" then
+            pcall(function() mouse1click() end)
+            task.wait(State.ClickerMs / 1000)
+        else
+            task.wait()
+        end
+    end
+end)
+task.spawn(function()
+    while Running and task.wait(1) do
+        pcall(function()
+            local n = #Players:GetPlayers()
+            local ping = math.floor(LocalPlayer:GetNetworkPing() * 1000)
+            ServerPar:SetBody("Players: " .. n .. "   Ping: " .. ping .. "ms")
+        end)
+    end
+end)
 
 
 local Lighting = game:GetService("Lighting")
@@ -895,9 +992,7 @@ local function worldControlsActive()
     return State.AmbientEnabled or State.BloomEnabled or State.ColorCorrectionEnabled or State.AtmosphereEnabled or State.TimeEnabled or State.FogEnabled or State.SkyboxEnabled
 end
 
-local function applyWorld()
-    if worldControlsActive() then captureWorld() end
-    if savedWorld then restoreWorld() end
+local function applyOverrides()
     pcall(function()
         if State.AmbientEnabled then
             Lighting.Ambient = State.AmbientColor
@@ -945,9 +1040,6 @@ local function applyWorld()
             worldAtmosphere.Haze = State.AtmosphereHaze
             worldAtmosphere.Glare = State.AtmosphereGlare
         end)
-    elseif worldAtmosphere and savedWorld and not savedWorld.Atmosphere then
-        pcall(function() worldAtmosphere:Destroy() end)
-        worldAtmosphere = nil
     end
     if State.SkyboxEnabled then
         worldSky = Lighting:FindFirstChildOfClass("Sky") or worldSky
@@ -960,7 +1052,18 @@ local function applyWorld()
             worldSky.SkyboxRt = assetUrl(State.SkyboxRt)
             worldSky.SkyboxUp = assetUrl(State.SkyboxUp)
         end)
-    elseif worldSky and savedWorld and not savedWorld.Sky then
+    end
+end
+
+local function applyWorld()
+    if worldControlsActive() then captureWorld() end
+    if savedWorld then restoreWorld() end
+    applyOverrides()
+    if not State.AtmosphereEnabled and worldAtmosphere and savedWorld and not savedWorld.Atmosphere then
+        pcall(function() worldAtmosphere:Destroy() end)
+        worldAtmosphere = nil
+    end
+    if not State.SkyboxEnabled and worldSky and savedWorld and not savedWorld.Sky then
         pcall(function() worldSky:Destroy() end)
         worldSky = nil
     end
@@ -1082,18 +1185,26 @@ track(RunService.Stepped:Connect(function()
         pcall(function()
             if State.Fullbright then
                 Lighting.Brightness = 2
-                Lighting.ClockTime = 14
+                if not State.TimeEnabled then Lighting.ClockTime = 14 end
                 Lighting.GlobalShadows = false
-                Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+                if not State.AmbientEnabled then Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255) end
             end
             if State.NoFog then
-                Lighting.FogEnd = 100000
-                Lighting.FogStart = 0
+                if not State.FogEnabled then
+                    Lighting.FogEnd = 100000
+                    Lighting.FogStart = 0
+                end
                 for _, a in ipairs(Lighting:GetDescendants()) do
                     if a:IsA("Atmosphere") then a.Density = 0 end
                 end
             end
         end)
+    end
+    if State.Grav ~= defaultGravity then
+        pcall(function() Workspace.Gravity = State.Grav end)
+    end
+    if worldControlsActive() then
+        applyOverrides()
     end
 end))
 track(UIS.InputBegan:Connect(function(input, gp)
@@ -1300,6 +1411,8 @@ TpSec:Button({ Name = "To lobby"; Callback = function()
     if spawn then tpTo(spawn.Position) else Lumen.Notify({ Title = "bleed.rest"; Text = "No spawn found"; Duration = 2 }) end
 end })
 
+local origUnload = Lumen.Unload
+
 local function cleanup()
     Running = false
     for _, c in ipairs(Connections) do
@@ -1326,6 +1439,10 @@ local function cleanup()
     end
     table.clear(noclipSaved)
     if setFly then pcall(function() setFly(false) end) end
+    if savedFov and State.FovOverride then
+        local cam = getCam()
+        if cam then pcall(function() cam.FieldOfView = savedFov end) end
+    end
     if savedLight then
         pcall(function()
             Lighting.Brightness = savedLight.Brightness
@@ -1361,10 +1478,14 @@ local function cleanup()
     if worldBloom then pcall(function() worldBloom:Destroy() end) worldBloom = nil end
     if worldColorCorrection then pcall(function() worldColorCorrection:Destroy() end) worldColorCorrection = nil end
     pcall(function() Workspace.Gravity = defaultGravity end)
-    pcall(function() Lumen.Unload() end)
+    pcall(origUnload)
 end
 
 if getgenv then getgenv().bleed_rest_loaded = cleanup end
+
+Lumen.Unload = function()
+    pcall(cleanup)
+end
 
 Lumen:BuildConfigPage(Window)
 Lumen.ToggleMenu(true)
