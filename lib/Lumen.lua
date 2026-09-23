@@ -1713,9 +1713,8 @@ Library.Window = function(self: Library, propertyTable: {})
 		Icon = nil,
 	}, propertyTable or {})
 
-	local Canvas = Add("CanvasGroup", { Parent = self._Instance; Name = "Canvas"; GroupColor3 = RGB(255, 255, 255); GroupTransparency = 0; Size = UFO(658, 461); }) :: CanvasGroup
-	local CanvasBg = Add("Frame", { Parent = Canvas; Name = "CanvasBg"; BackgroundColor3 = Library.Theme.Background; BorderColor3 = RGB(0, 0, 0); BorderSizePixel = 0; Size = UFS(1, 1); }) :: Frame
-	Library.ThemeLink(CanvasBg, "BackgroundColor3", "Background")
+	local Canvas = Add("Frame", { Parent = self._Instance; Name = "Canvas"; BackgroundColor3 = Library.Theme.Background; BorderColor3 = RGB(0, 0, 0); BorderSizePixel = 0; Size = UFO(658, 461); }) :: Frame
+	Library.ThemeLink(Canvas, "BackgroundColor3", "Background")
 	local Sidebar = Add("Frame", { Parent = Canvas; Name = "Sidebar"; BackgroundColor3 = Library.Theme.Surface; BorderColor3 = RGB(0, 0, 0); BorderSizePixel = 0; Size = UD2(0, 75, 1, 0); }) :: Frame
 	Library.ThemeLink(Sidebar, "BackgroundColor3", "Surface")
 
@@ -3599,23 +3598,7 @@ Library.ToggleMenu = function(State: boolean?)
 	Library.MenuOpen = State
 	for _, Win in Library.Windows do
 		if Win.Canvas then
-			if State then
-				Win.Canvas.Visible = true
-				pcall(function() Tween(Win.Canvas, { GroupTransparency = 0 }, 0.16, ES.Quad, ED.Out) end)
-			else
-				local Canvas = Win.Canvas
-				local Faded = pcall(function()
-					local Fade = Tween(Canvas, { GroupTransparency = 1 }, 0.16, ES.Quad, ED.In)
-					Fade.Completed:Connect(function()
-						if not Library.MenuOpen and Canvas and Canvas.Parent then
-							Canvas.Visible = false
-						end
-					end)
-				end)
-				if not Faded then
-					Canvas.Visible = false
-				end
-			end
+			Win.Canvas.Visible = State
 		end
 	end
 	if Library.OpenPopup and Library.OpenPopup.Close then

@@ -27,4 +27,4 @@ Roblox exploit script hub (`bleed.rest`). Private GitHub repo (`pandaeatdonuts-b
 ## Gotchas
 
 - `mm2/main.lua` builds UI sections before world helpers are defined; `setFly` is forward-declared and assigned later. Order matters — keep it.
-- The menu fade lives in `lib/Lumen.lua` `Library.ToggleMenu` (GroupTransparency tween); `Lumen.MenuOpen` is read in mm2/main.lua only to hide Drawing visuals under the menu.
+- `lib/Lumen.lua` `Library.ToggleMenu` toggles `Canvas.Visible` instantly (a CanvasGroup fade was tried but renders black on this client — don't reintroduce `GroupTransparency` tweens on a Frame). `Lumen.MenuOpen` is read in mm2/main.lua only to hide Drawing visuals under the menu.
