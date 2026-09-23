@@ -1713,8 +1713,9 @@ Library.Window = function(self: Library, propertyTable: {})
 		Icon = nil,
 	}, propertyTable or {})
 
-	local Canvas = Add("CanvasGroup", { Parent = self._Instance; Name = "Canvas"; GroupColor3 = Library.Theme.Background; GroupTransparency = 0; Size = UFO(658, 461); }) :: CanvasGroup
-	Library.ThemeLink(Canvas, "GroupColor3", "Background")
+	local Canvas = Add("CanvasGroup", { Parent = self._Instance; Name = "Canvas"; GroupColor3 = RGB(255, 255, 255); GroupTransparency = 0; Size = UFO(658, 461); }) :: CanvasGroup
+	local CanvasBg = Add("Frame", { Parent = Canvas; Name = "CanvasBg"; BackgroundColor3 = Library.Theme.Background; BorderColor3 = RGB(0, 0, 0); BorderSizePixel = 0; Size = UFS(1, 1); }) :: Frame
+	Library.ThemeLink(CanvasBg, "BackgroundColor3", "Background")
 	local Sidebar = Add("Frame", { Parent = Canvas; Name = "Sidebar"; BackgroundColor3 = Library.Theme.Surface; BorderColor3 = RGB(0, 0, 0); BorderSizePixel = 0; Size = UD2(0, 75, 1, 0); }) :: Frame
 	Library.ThemeLink(Sidebar, "BackgroundColor3", "Surface")
 
