@@ -139,7 +139,6 @@ ColFill = Color3.fromRGB(255, 255, 255), ColOutline = Color3.fromRGB(255, 255, 2
     FogEnabled = false, FogColor = Color3.fromRGB(192, 192, 192), FogStart = 0, FogEnd = 100000,
     SkyboxEnabled = false, SkyboxBk = "", SkyboxDn = "", SkyboxFt = "", SkyboxLf = "", SkyboxRt = "", SkyboxUp = "",
     FovOverride = false, FovValue = 70,
-    ThirdPerson = false, TpDist = 12, TpHeight = 4,
     SuperJump = false, SuperJumpPower = 200,
     AntiAfk = false,
     AutoClick = false, ClickerMs = 100,
@@ -881,10 +880,6 @@ FovOn:Toggle({ State = false; Flag = "FovOverride"; Callback = function(v)
     State.FovOverride = v
 end })
 CamSec:Slider({ Name = "FOV"; Suffix = ""; Value = 70; Min = 20; Max = 120; Increment = 1; Flag = "FovValue"; Callback = function(v) State.FovValue = v end })
-local TpOn = CamSec:Label({ Text = "Third person" })
-TpOn:Toggle({ State = false; Flag = "ThirdPerson"; Callback = function(v) State.ThirdPerson = v end })
-CamSec:Slider({ Name = "Distance"; Suffix = ""; Value = 12; Min = 3; Max = 30; Increment = 1; Flag = "TpDist"; Callback = function(v) State.TpDist = v end })
-CamSec:Slider({ Name = "Height"; Suffix = ""; Value = 4; Min = 0; Max = 15; Increment = 0.5; Flag = "TpHeight"; Callback = function(v) State.TpHeight = v end })
 local CharSec = MiscSub:Section({ Name = "Character"; Side = "Right"; Icon = "user" })
 local SjOn = CharSec:Label({ Text = "Super jump" })
 SjOn:Toggle({ State = false; Flag = "SuperJump"; Callback = function(v) State.SuperJump = v end })
@@ -913,10 +908,6 @@ track(RunService.RenderStepped:Connect(function(dt)
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if State.Spinbot and hrp then
         hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(State.SpinSpeed) * dt, 0)
-    end
-    if State.ThirdPerson and hrp then
-        local look = cam.CFrame.LookVector
-        cam.CFrame = CFrame.new(hrp.Position - look * State.TpDist + Vector3.new(0, State.TpHeight, 0), hrp.Position + Vector3.new(0, 1.5, 0))
     end
 end))
 track(UIS.InputBegan:Connect(function(input, gp)
