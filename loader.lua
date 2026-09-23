@@ -1,10 +1,7 @@
--- bleed.rest hub entry (Potassium-friendly small payload).
--- Usage, either dispatch this file or run:
--- loadstring(game:HttpGet("https://raw.githubusercontent.com/pandaeatdonuts-byte/bleed.rest/main/loader.lua"))()
 local BASE = "https://raw.githubusercontent.com/pandaeatdonuts-byte/bleed.rest/main/"
 
 local GAMES = {
-    [142823291] = "mm2/main.lua", -- MM2-clone ("Ugc")
+    [142823291] = "mm2/main.lua", 
 }
 
 local file = GAMES[game.PlaceId]

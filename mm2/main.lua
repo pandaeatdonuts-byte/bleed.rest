@@ -1,6 +1,6 @@
--- mm2/main.lua | bleed.rest hub | MM2-clone (PlaceId 142823291) | vendored Lumen UI
--- UI upstream: https://github.com/chromatiks/lumen/tree/main (vendored + rebranded in lib/)
--- Loaded via hub loader.lua (per-game entry). Can also run standalone.
+
+
+
 
 if getgenv and getgenv().bleed_rest_loaded then
     pcall(function() getgenv().bleed_rest_loaded() end)
@@ -9,7 +9,7 @@ end
 
 local LIB_URLS = {
     "https://raw.githubusercontent.com/pandaeatdonuts-byte/bleed.rest/main/lib/Lumen.lua",
-    "https://raw.githubusercontent.com/chromatiks/Lumen/main/Library.lua", -- upstream fallback
+    "https://raw.githubusercontent.com/chromatiks/Lumen/main/Library.lua", 
 }
 
 local function httpGet(url)
@@ -28,14 +28,14 @@ local Lumen = loadstring(libSrc)()
 
 pcall(function() Lumen.SetConfigFolder("bleed_rest") end)
 
--- Menu toggle default. Change anytime: Settings > Menu > Menu key.
+
 Lumen.MenuKey = Enum.KeyCode.RightShift
 
 Lumen:LoadingScreen({ Title = "bleed.rest", Subtitle = "Initializing...", Duration = 1.0 })
 Lumen.SetWatermark("bleed.rest", true)
 Lumen.SetKeybindList(true)
 
--- // Services
+
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -44,12 +44,19 @@ local UIS = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
-local _unpack = table.unpack or unpack
+
+
+local Running = true
+local Connections = {}
+local function track(conn)
+    Connections[#Connections + 1] = conn
+    return conn
+end
 
 local function getCam()
     return Workspace.CurrentCamera
 end
--- screen-space mouse (Drawing + viewport math must share one origin)
+
 local function screenMouse()
     return UIS:GetMouseLocation()
 end
@@ -59,7 +66,7 @@ local function toScreen(cam, world)
     return Vector2.new(v.X + inset.X, v.Y + inset.Y), on
 end
 
--- // Remotes (non-blocking: game may still be loading, UI must show regardless)
+
 local Remotes = RS:FindFirstChild("Remotes")
 if not Remotes then
     Remotes = RS:WaitForChild("Remotes", 15)
@@ -96,31 +103,31 @@ local function invoke1(remote, arg)
     return ok and res or nil
 end
 
--- // State
+
 local State = {
-    -- kill aura (legacy)
-    KillAura = false, KillRange = 22, KillMethod = "Knife",
+    
+    KillAura = false, KillRange = 22, KillMethod = "Knife", KillTargets = "Murderer + Sheriff",
     FakeGun = false, Stealth = false,
     AutoCoins = false,
-    -- esp
+    
     ESP = true, Chams = true, EspName = true, EspRole = true, EspDist = true,
     Tracer = false, TracerFrom = "Bottom", TracerThick = 1,
     EspMaxDist = 600, ShowInnocents = true, ShowDead = false,
     ChamsFill = 0.6, ChamsTop = true,
     ColFill = Color3.fromRGB(255, 255, 255), ColOutline = Color3.fromRGB(255, 255, 255),
     MurderESP = true, SheriffESP = true,
-    -- aimbot
+    
     Aimbot = false, AimHeld = false, AimFOV = 120, AimMode = "Mouse",
     AimSens = 1.0, AimSmoothX = 6, AimSmoothY = 6, AimSmooth = 35,
     AimPredict = true, PredictAmt = 100,
     AimPart = "Head", AimTargets = "Auto", AimVisible = true, ShowAimFOV = true,
-    -- silent
+    
     Silent = false, SilentFOV = 100, HitChance = 100, ExtraLead = 0.05,
     ShowSilentFOV = true,
-    -- trigger
+    
     Trigger = false, TriggerHeld = false, TriggerDelay = 150, TriggerRange = 400,
     TriggerTargets = "Auto",
-    -- player/misc
+    
     Fly = false, FlySpeed = 60, WalkSpeed = 16, JumpPower = 50,
     Fullbright = false, NoFog = false, Grav = 196.2, Noclip = false, ClickTP = false,
     AmbientEnabled = false, AmbientColor = Color3.fromRGB(255, 255, 255), OutdoorAmbientColor = Color3.fromRGB(255, 255, 255),
@@ -132,8 +139,8 @@ local State = {
     SkyboxEnabled = false, SkyboxBk = "", SkyboxDn = "", SkyboxFt = "", SkyboxLf = "", SkyboxRt = "", SkyboxUp = "",
 }
 
--- // Role tracker (multi-signal: remote args, scoreboard names, held tools)
-local Roles = {} -- [userId] = "Murderer" | "Sheriff"
+
+local Roles = {} 
 local function parseSignal(...)
     local plr, role
     local args = { ... }
@@ -153,12 +160,12 @@ if Gameplay then
     for _, n in ipairs({ "ShowTeammates", "RoleSelect", "ShowRoleSelectNew", "GiveWeapon", "KillEvent", "VictoryScreen" }) do
         local r = Gameplay:FindFirstChild(n)
         if r and r:IsA("RemoteEvent") then
-            r.OnClientEvent:Connect(function(...) parseSignal(...) end)
+            track(r.OnClientEvent:Connect(function(...) parseSignal(...) end))
         end
     end
     local rs = Gameplay:FindFirstChild("RoundStart")
     if rs and rs:IsA("RemoteEvent") then
-        rs.OnClientEvent:Connect(function() table.clear(Roles) end)
+        track(rs.OnClientEvent:Connect(function() table.clear(Roles) end))
     end
 end
 
@@ -196,13 +203,13 @@ local function espOutline(role)
     return State.ColOutline
 end
 
--- scrape scoreboard + own role label every few seconds
+
 task.spawn(function()
-    while task.wait(3) do
+    while Running and task.wait(3) do
         pcall(function()
             local pg = LocalPlayer:FindFirstChild("PlayerGui")
             if not pg then return end
-            -- own role label
+            
             local rs = pg:FindFirstChild("CrossPlatform", true)
             if rs then
                 for _, d in ipairs(rs:GetDescendants()) do
@@ -213,7 +220,7 @@ task.spawn(function()
                     end
                 end
             end
-            -- versus frames reveal names
+            
             local sb = pg:FindFirstChild("Scoreboard")
             if sb then
                 for _, d in ipairs(sb:GetDescendants()) do
@@ -236,7 +243,7 @@ task.spawn(function()
     end
 end)
 
--- // Target helpers
+
 local function getPing()
     local ok, p = pcall(function() return LocalPlayer:GetNetworkPing() end)
     local n = tonumber(ok and p or nil)
@@ -294,7 +301,7 @@ end
 local function roleAllowed(role, mode)
     if mode == "Auto" then
         if threatKnown() then return role == "Murderer" or role == "Sheriff" end
-        return true -- no roles detected yet: anyone alive
+        return true 
     end
     if mode == "Everyone" then return true end
     if mode == "Murderer" then return role == "Murderer" end
@@ -327,7 +334,7 @@ local currentAimTarget = nil
 local function bestTarget(cam, mousePos, fovPx, mode, usePart)
     local myChar = LocalPlayer.Character
     if not myChar then return nil end
-    -- sticky: keep current if still valid + in fov
+    
     if currentAimTarget and currentAimTarget.Parent then
         local plr = Players:GetPlayerFromCharacter(currentAimTarget)
         if plr then
@@ -366,7 +373,7 @@ local function bestTarget(cam, mousePos, fovPx, mode, usePart)
     return best, bestChar, bestPart, bestRole
 end
 
--- // ESP engine
+
 local hasDrawing = typeof(Drawing) == "table"
 local tracers = {}
 local fovCircle, silentCircle
@@ -396,11 +403,11 @@ local function getTracer(plr)
     tracers[plr.UserId] = nl
     return nl
 end
-Players.PlayerRemoving:Connect(function(plr)
+track(Players.PlayerRemoving:Connect(function(plr)
     local l = tracers[plr.UserId]
     if l then pcall(function() l:Remove() end) tracers[plr.UserId] = nil end
     if currentAimTarget then currentAimTarget = nil end
-end)
+end))
 local function tracerOrigin(cam)
     local vs = cam.ViewportSize
     if State.TracerFrom == "Top" then return Vector2.new(vs.X / 2, 0) end
@@ -418,7 +425,7 @@ local function ensureTag(char)
     tag.Name = "bleedTag"
     tag.Size = UDim2.new(0, 140, 0, 28)
     tag.StudsOffset = Vector3.new(0, 3.2, 0)
-    tag.AlwaysOnTop = false -- menu (DisplayOrder 1000) draws above ESP
+    tag.AlwaysOnTop = false 
     local name = Instance.new("TextLabel")
     name.Name = "Name"
     name.Size = UDim2.new(1, 0, 1, 0)
@@ -441,23 +448,24 @@ local function ensureChams(char)
     return hl
 end
 
--- // Main loop: ESP + tracers + aimbot + trigger
+
 local lastTriggerShot = 0
+local silentOldCF, silentPending, silentScheduled = nil, false, false
 local hasMouseMove = typeof(mousemoverel) == "function"
 local function round6(v)
     if v >= 0 then return math.floor(v + 0.5) end
     return math.ceil(v - 0.5)
 end
-RunService.RenderStepped:Connect(function()
+track(RunService.RenderStepped:Connect(function()
     local cam = getCam()
     if not cam then return end
     local mousePos = screenMouse()
-    -- fov circles
-    -- Drawing renders above all Roblox GUI: hide overlays while menu is open
+    
+    
     local menuOpen = Lumen.MenuOpen == true
     setCircle(fovCircle, State.ShowAimFOV and State.Aimbot and not menuOpen, mousePos, State.AimFOV)
     setCircle(silentCircle, State.ShowSilentFOV and State.Silent and not menuOpen, mousePos, State.SilentFOV)
-    -- per-player visuals
+    
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
             local char = plr.Character
@@ -472,7 +480,7 @@ RunService.RenderStepped:Connect(function()
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
             if hrp and myHrp then dist = (myHrp.Position - hrp.Position).Magnitude end
             if showPlayer and dist > State.EspMaxDist then showPlayer = false end
-            -- chams
+            
             local hl = ensureChams(char)
             hl.Enabled = showPlayer and State.Chams
             if hl.Enabled then
@@ -482,7 +490,7 @@ RunService.RenderStepped:Connect(function()
                 hl.OutlineTransparency = 0
                 hl.DepthMode = State.ChamsTop and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
             end
-            -- nametag
+            
             local tag = ensureTag(char)
             local showTag = showPlayer and (State.EspName or State.EspRole or State.EspDist)
             tag.Enabled = showTag
@@ -497,7 +505,7 @@ RunService.RenderStepped:Connect(function()
                     nl.TextColor3 = espFill(role)
                 end
             end
-            -- tracer
+            
             local line = getTracer(plr)
             if line then
                 local showLine = showPlayer and State.Tracer and hrp ~= nil and not menuOpen
@@ -513,7 +521,7 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
-    -- aimbot (mouse move default, camera lock fallback)
+    
     if State.Aimbot and State.AimHeld then
         local plr, char, part = bestTarget(cam, mousePos, State.AimFOV, State.AimTargets, State.AimPart)
         if plr and part then
@@ -536,7 +544,7 @@ RunService.RenderStepped:Connect(function()
     else
         if currentAimTarget and not State.AimHeld then currentAimTarget = nil end
     end
-    -- triggerbot (click when crosshair sits on a valid target)
+    
     if State.Trigger and State.TriggerHeld then
         local t = Mouse.Target
         if t then
@@ -554,10 +562,10 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
-end)
+end))
 
--- silent aim: micro-snap on fire (hit% roll + prediction)
-UIS.InputBegan:Connect(function(input, gp)
+
+track(UIS.InputBegan:Connect(function(input, gp)
     if not State.Silent then return end
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     if math.random(1, 100) > State.HitChance then return end
@@ -568,20 +576,26 @@ UIS.InputBegan:Connect(function(input, gp)
     if plr and part then
         local aimAt = predictPos(part)
         if aimAt then
-            local old = cam.CFrame
+            if not silentPending then silentOldCF = cam.CFrame end
+            silentPending = true
             cam.CFrame = CFrame.lookAt(cam.CFrame.Position, aimAt)
-            task.delay(0.04, function()
-                local c2 = getCam()
-                if c2 then pcall(function() c2.CFrame = old end) end
-            end)
+            if not silentScheduled then
+                silentScheduled = true
+                task.delay(0.04, function()
+                    silentScheduled = false
+                    silentPending = false
+                    local c2 = getCam()
+                    if c2 and silentOldCF then pcall(function() c2.CFrame = silentOldCF end) end
+                end)
+            end
         end
     end
-end)
+end))
 
--- // UI
+
 local Window = Lumen:Window({ Title = "bleed.rest", Footer = "bleed.rest" })
 
--- Combat
+
 local Combat = Window:Page({ Icon = "swords" })
 local AimPage = Combat:SubPage({ Name = "Aimbot" })
 local AimSec = AimPage:Section({ Name = "Aimbot"; Side = "Left"; Icon = "crosshair" })
@@ -606,7 +620,7 @@ ShowFov:Toggle({ State = true; Flag = "ShowAimFOV"; Callback = function(v) State
 local AimStatus = AimSec:Paragraph({ Title = "Status"; Body = "Detecting roles..." })
 
 task.spawn(function()
-    while task.wait(1) do
+    while Running and task.wait(1) do
         pcall(function()
             local m, s = "?", "?"
             for _, p in ipairs(Players:GetPlayers()) do
@@ -634,7 +648,7 @@ local TrigPage = Combat:SubPage({ Name = "Triggerbot" })
 local TrigSec = TrigPage:Section({ Name = "Triggerbot"; Side = "Left"; Icon = "mouse-pointer" })
 local TrigOn = TrigSec:Label({ Text = "Enable triggerbot" })
 TrigOn:Toggle({ State = false; Flag = "Trigger"; Callback = function(v) State.Trigger = v end })
-TrigOn:Keybind({ Key = Enum.UserInputType.MouseButton2; Type = "Hold"; Flag = "TriggerKey"; Callback = function(v) State.TriggerHeld = v end })
+TrigOn:Keybind({ Key = Enum.KeyCode.LeftAlt; Type = "Hold"; Flag = "TriggerKey"; Callback = function(v) State.TriggerHeld = v end })
 TrigSec:Slider({ Name = "Delay"; Suffix = " ms"; Value = 150; Min = 0; Max = 500; Increment = 10; Flag = "TriggerDelay"; Callback = function(v) State.TriggerDelay = v end })
 TrigSec:Slider({ Name = "Max range"; Suffix = " studs"; Value = 400; Min = 20; Max = 2000; Increment = 10; Flag = "TriggerRange"; Callback = function(v) State.TriggerRange = v end })
 TrigSec:Dropdown({ Name = "Targets"; Options = { "Auto", "Murderer", "Murderer + Sheriff", "Sheriff", "Everyone" }; Value = "Auto"; Flag = "TriggerTargets"; Callback = function(v) State.TriggerTargets = v end })
@@ -645,6 +659,7 @@ local KALabel = KA:Label({ Text = "Enable kill aura" })
 KALabel:Toggle({ State = false; Flag = "KillAura"; Callback = function(v) State.KillAura = v end })
 KA:Slider({ Name = "Range"; Suffix = " studs"; Value = 22; Min = 8; Max = 60; Increment = 1; Flag = "KillRange"; Callback = function(v) State.KillRange = v end })
 KA:Dropdown({ Name = "Method"; Options = { "Knife", "Gun", "Eliminate" }; Value = "Knife"; Flag = "KillMethod"; Callback = function(v) State.KillMethod = v end })
+KA:Dropdown({ Name = "Targets"; Options = { "Murderer + Sheriff", "Murderer", "Sheriff", "Everyone" }; Value = "Murderer + Sheriff"; Flag = "KillTargets"; Callback = function(v) State.KillTargets = v end })
 local Perks = KillerPage:Section({ Name = "Perks"; Side = "Right"; Icon = "star" })
 local FakeLabel = Perks:Label({ Text = "Fake gun" })
 FakeLabel:Toggle({ State = false; Flag = "FakeGun"; Callback = function(v)
@@ -658,17 +673,17 @@ StealthLabel:Toggle({ State = false; Flag = "Stealth"; Callback = function(v)
 end })
 
 task.spawn(function()
-    local killEvent = Gameplay and Gameplay:FindFirstChild("KillEvent")
-    local eliminate = Gameplay and Gameplay:FindFirstChild("EliminatePlayer")
-    while task.wait(0.25) do
+    while Running and task.wait(0.25) do
         if State.KillAura then
+            local killEvent = Gameplay and Gameplay:FindFirstChild("KillEvent")
+            local eliminate = Gameplay and Gameplay:FindFirstChild("EliminatePlayer")
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
                 for _, plr in ipairs(Players:GetPlayers()) do
                     if plr ~= LocalPlayer then
                         local c2, role = validTarget(plr, "Everyone", State.KillRange)
-                        if c2 and (role == "Murderer" or role == "Sheriff" or State.ShowInnocents) then
+                        if c2 and roleAllowed(role, State.KillTargets) then
                             if State.KillMethod == "Eliminate" then
                                 invoke1(eliminate, plr)
                             else
@@ -683,7 +698,7 @@ task.spawn(function()
     end
 end)
 
--- Visuals
+
 local Visuals = Window:Page({ Icon = "eye" })
 local EspPage = Visuals:SubPage({ Name = "ESP" })
 local EspSec = EspPage:Section({ Name = "Players"; Side = "Left"; Icon = "users" })
@@ -722,7 +737,7 @@ local SheEsp = RoleSec:Label({ Text = "Sheriff ESP" })
 SheEsp:Toggle({ State = true; Flag = "SheriffESP"; Callback = function(v) State.SheriffESP = v end })
 RoleSec:Paragraph({ Title = "Override"; Body = "Murderer forces red, sheriff forces blue on every active ESP option. Innocents untouched." })
 
--- Farm
+
 local FarmPage = Window:Page({ Icon = "box" })
 local Coins = FarmPage:SubPage({ Name = "Coins" })
 local CoinSec = Coins:Section({ Name = "Auto Farm"; Side = "Left"; Icon = "box" })
@@ -730,8 +745,8 @@ local CoinLabel = CoinSec:Label({ Text = "Auto collect coins" })
 CoinLabel:Toggle({ State = false; Flag = "AutoCoins"; Callback = function(v) State.AutoCoins = v end })
 
 task.spawn(function()
-    local getCoin = Gameplay and Gameplay:FindFirstChild("GetCoin")
-    while task.wait(0.5) do
+    while Running and task.wait(0.5) do
+        local getCoin = Gameplay and Gameplay:FindFirstChild("GetCoin")
         if State.AutoCoins and getCoin then
             local folder = RS:FindFirstChild("Coins")
             if folder then
@@ -750,7 +765,7 @@ task.spawn(function()
     end
 end)
 
--- Player
+
 local PlayerPage = Window:Page({ Icon = "user" })
 local Move = PlayerPage:SubPage({ Name = "Movement" })
 local MoveSec = Move:Section({ Name = "Character"; Side = "Left"; Icon = "move" })
@@ -765,22 +780,27 @@ MoveSec:Slider({ Name = "JumpPower"; Suffix = ""; Value = 50; Min = 50; Max = 30
     if hum then hum.JumpPower = v end
 end })
 local FlyLabel = MoveSec:Label({ Text = "Fly" })
-local setFly -- forward: defined in world helpers below
-FlyLabel:Toggle({ State = false; Flag = "Fly"; Callback = function(v)
+local setFly 
+local FlyToggle = FlyLabel:Toggle({ State = false; Flag = "Fly"; Callback = function(v)
     State.Fly = v
     if setFly then setFly(v) end
 end })
-FlyLabel:Keybind({ Key = Enum.KeyCode.F; Type = "Toggle"; Flag = "FlyKey"; Callback = function() end })
+FlyLabel:Keybind({ Key = Enum.KeyCode.F; Type = "Toggle"; Flag = "FlyKey"; Callback = function()
+    if FlyToggle then FlyToggle.Set() end
+end })
 MoveSec:Slider({ Name = "Fly speed"; Suffix = ""; Value = 60; Min = 10; Max = 250; Increment = 5; Flag = "FlySpeed"; Callback = function(v) State.FlySpeed = v end })
 local NoclipOn = MoveSec:Label({ Text = "Noclip" })
 NoclipOn:Toggle({ State = false; Flag = "Noclip"; Callback = function(v) State.Noclip = v end })
 local ClickTpOn = MoveSec:Label({ Text = "Ctrl+Click teleport" })
 ClickTpOn:Toggle({ State = false; Flag = "ClickTP"; Callback = function(v) State.ClickTP = v end })
 
--- // World helpers (client-side only)
+
 local Lighting = game:GetService("Lighting")
+local defaultGravity = Workspace.Gravity
+local noclipSaved = {}
 local savedLight = nil
 local savedAtmo = {}
+local savedFog = nil
 local savedWorld = nil
 local worldBloom, worldColorCorrection, worldAtmosphere, worldSky = nil, nil, nil, nil
 
@@ -950,7 +970,7 @@ local function applyWorld()
     end
 end
 
--- fly rig
+
 local flyBV, flyBG = nil, nil
 setFly = function(on)
     local char = LocalPlayer.Character
@@ -973,7 +993,7 @@ setFly = function(on)
         pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
     end
 end
-RunService.RenderStepped:Connect(function()
+track(RunService.RenderStepped:Connect(function()
     if not State.Fly then return end
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -990,7 +1010,20 @@ RunService.RenderStepped:Connect(function()
     if move.Magnitude > 0 then move = move.Unit * State.FlySpeed else move = Vector3.new(0, 0, 0) end
     flyBV.Velocity = move
     flyBG.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + cam.CFrame.LookVector)
-end)
+end))
+
+
+track(LocalPlayer.CharacterAdded:Connect(function()
+    table.clear(noclipSaved)
+    pcall(function()
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = State.WalkSpeed
+            hum.JumpPower = State.JumpPower
+        end
+        if State.Fly then setFly(true) end
+    end)
+end))
 local function tpTo(pos)
     local c = LocalPlayer.Character
     local hrp = c and c:FindFirstChild("HumanoidRootPart")
@@ -1028,14 +1061,22 @@ local function nearestCoinPos()
     end
     return bestPos
 end
-RunService.Stepped:Connect(function()
+track(RunService.Stepped:Connect(function()
     if State.Noclip then
         local c = LocalPlayer.Character
         if c then
             for _, p in ipairs(c:GetDescendants()) do
-                if p:IsA("BasePart") then p.CanCollide = false end
+                if p:IsA("BasePart") then
+                    if noclipSaved[p] == nil then noclipSaved[p] = p.CanCollide end
+                    p.CanCollide = false
+                end
             end
         end
+    elseif next(noclipSaved) ~= nil then
+        for p, collide in pairs(noclipSaved) do
+            if p and p.Parent then pcall(function() p.CanCollide = collide end) end
+        end
+        table.clear(noclipSaved)
     end
     if State.Fullbright or State.NoFog then
         pcall(function()
@@ -1054,11 +1095,8 @@ RunService.Stepped:Connect(function()
             end
         end)
     end
-    if worldControlsActive() then
-        applyWorld()
-    end
-end)
-UIS.InputBegan:Connect(function(input, gp)
+end))
+track(UIS.InputBegan:Connect(function(input, gp)
     if not State.ClickTP then return end
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     if not UIS:IsKeyDown(Enum.KeyCode.LeftControl) then return end
@@ -1071,9 +1109,9 @@ UIS.InputBegan:Connect(function(input, gp)
     if myChar then params.FilterDescendantsInstances = { myChar } end
     local hit = Workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
     if hit and hit.Position then tpTo(hit.Position) end
-end)
+end))
 
--- World
+
 local WorldPage = Window:Page({ Icon = "cloud" })
 local WorldSub = WorldPage:SubPage({ Name = "World" })
 local EnvSec = WorldSub:Section({ Name = "Environment"; Side = "Left"; Icon = "sun" })
@@ -1100,6 +1138,7 @@ FogOn:Toggle({ State = false; Flag = "NoFog"; Callback = function(v)
     State.NoFog = v
     if v then
         savedAtmo = {}
+        savedFog = { Lighting.FogStart, Lighting.FogEnd }
         for _, a in ipairs(Lighting:GetDescendants()) do
             if a:IsA("Atmosphere") then savedAtmo[a] = a.Density end
         end
@@ -1109,9 +1148,13 @@ FogOn:Toggle({ State = false; Flag = "NoFog"; Callback = function(v)
                 pcall(function() a.Density = d end)
             end
             table.clear(savedAtmo)
-            pcall(function() Lighting.FogEnd = 100000 end)
-            applyWorld()
         end
+        if savedFog then
+            pcall(function() Lighting.FogStart = savedFog[1] end)
+            pcall(function() Lighting.FogEnd = savedFog[2] end)
+            savedFog = nil
+        end
+        applyWorld()
     end
 end })
 EnvSec:Slider({ Name = "Gravity"; Suffix = ""; Value = 196.2; Min = 0; Max = 500; Increment = 1; Flag = "Grav"; Callback = function(v)
@@ -1165,7 +1208,7 @@ FogSec:Slider({ Name = "Fog end"; Suffix = ""; Value = 100000; Min = 0; Max = 10
 
 local SkySec = WorldSub:Section({ Name = "Skybox"; Side = "Right"; Icon = "image" })
 local SkyOn = SkySec:Label({ Text = "Skybox override" })
-SkyOn:Toggle({ State = false; Flag = "SkyboxEnabled"; Callback = function(v) State.SkyboxEnabled = v; applyWorld() end })
+local SkyToggle = SkyOn:Toggle({ State = false; Flag = "SkyboxEnabled"; Callback = function(v) State.SkyboxEnabled = v; applyWorld() end })
 local SkyboxPresets = {
     ["Classic Blue"] = {
         "271042516", "271077243", "271042556", "271042310", "271042467", "271077958",
@@ -1210,6 +1253,7 @@ local SkyboxPresets = {
         "107786237452160", "109953709194446", "100735950859096", "74233469362020", "117169951089259", "113912446184349",
     },
 }
+local SkyInputBk, SkyInputDn, SkyInputFt, SkyInputLf, SkyInputRt, SkyInputUp
 SkySec:Dropdown({ Name = "Preset"; Options = {
     "Custom", "Classic Blue", "Warm Interior", "Sunset", "Red Night", "Orange Sunset",
     "Night", "Galaxy", "Purple Space", "Spring", "Beach Cloudy", "Beach Parking",
@@ -1220,14 +1264,21 @@ SkySec:Dropdown({ Name = "Preset"; Options = {
     State.SkyboxBk, State.SkyboxDn, State.SkyboxFt = faces[1], faces[2], faces[3]
     State.SkyboxLf, State.SkyboxRt, State.SkyboxUp = faces[4], faces[5], faces[6]
     State.SkyboxEnabled = true
+    if SkyToggle then SkyToggle.Set(true) end
+    if SkyInputBk then SkyInputBk.Set(faces[1]) end
+    if SkyInputDn then SkyInputDn.Set(faces[2]) end
+    if SkyInputFt then SkyInputFt.Set(faces[3]) end
+    if SkyInputLf then SkyInputLf.Set(faces[4]) end
+    if SkyInputRt then SkyInputRt.Set(faces[5]) end
+    if SkyInputUp then SkyInputUp.Set(faces[6]) end
     applyWorld()
 end })
-SkySec:Input({ Name = "Back asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxBk"; Callback = function(v) State.SkyboxBk = v; applyWorld() end })
-SkySec:Input({ Name = "Down asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxDn"; Callback = function(v) State.SkyboxDn = v; applyWorld() end })
-SkySec:Input({ Name = "Front asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxFt"; Callback = function(v) State.SkyboxFt = v; applyWorld() end })
-SkySec:Input({ Name = "Left asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxLf"; Callback = function(v) State.SkyboxLf = v; applyWorld() end })
-SkySec:Input({ Name = "Right asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxRt"; Callback = function(v) State.SkyboxRt = v; applyWorld() end })
-SkySec:Input({ Name = "Up asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxUp"; Callback = function(v) State.SkyboxUp = v; applyWorld() end })
+SkyInputBk = SkySec:Input({ Name = "Back asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxBk"; Callback = function(v) State.SkyboxBk = v; applyWorld() end })
+SkyInputDn = SkySec:Input({ Name = "Down asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxDn"; Callback = function(v) State.SkyboxDn = v; applyWorld() end })
+SkyInputFt = SkySec:Input({ Name = "Front asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxFt"; Callback = function(v) State.SkyboxFt = v; applyWorld() end })
+SkyInputLf = SkySec:Input({ Name = "Left asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxLf"; Callback = function(v) State.SkyboxLf = v; applyWorld() end })
+SkyInputRt = SkySec:Input({ Name = "Right asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxRt"; Callback = function(v) State.SkyboxRt = v; applyWorld() end })
+SkyInputUp = SkySec:Input({ Name = "Up asset id"; Placeholder = "rbxassetid://..."; Flag = "SkyboxUp"; Callback = function(v) State.SkyboxUp = v; applyWorld() end })
 
 local TpSec = WorldSub:Section({ Name = "Teleports"; Side = "Right"; Icon = "zap" })
 TpSec:Button({ Name = "To murderer"; Callback = function()
@@ -1249,7 +1300,71 @@ TpSec:Button({ Name = "To lobby"; Callback = function()
     if spawn then tpTo(spawn.Position) else Lumen.Notify({ Title = "bleed.rest"; Text = "No spawn found"; Duration = 2 }) end
 end })
 
-if getgenv then getgenv().bleed_rest_loaded = function() pcall(function() Lumen.Unload() end) end end
+local function cleanup()
+    Running = false
+    for _, c in ipairs(Connections) do
+        pcall(function() c:Disconnect() end)
+    end
+    table.clear(Connections)
+    for _, l in pairs(tracers) do
+        pcall(function() l:Remove() end)
+    end
+    table.clear(tracers)
+    if fovCircle then pcall(function() fovCircle:Remove() end) end
+    if silentCircle then pcall(function() silentCircle:Remove() end) end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        local char = plr.Character
+        if char then
+            local tag = char:FindFirstChild("bleedTag")
+            if tag then pcall(function() tag:Destroy() end) end
+            local hl = char:FindFirstChild("bleedChams")
+            if hl then pcall(function() hl:Destroy() end) end
+        end
+    end
+    for p, collide in pairs(noclipSaved) do
+        if p and p.Parent then pcall(function() p.CanCollide = collide end) end
+    end
+    table.clear(noclipSaved)
+    if setFly then pcall(function() setFly(false) end) end
+    if savedLight then
+        pcall(function()
+            Lighting.Brightness = savedLight.Brightness
+            Lighting.ClockTime = savedLight.ClockTime
+            Lighting.GlobalShadows = savedLight.GlobalShadows
+            Lighting.OutdoorAmbient = savedLight.OutdoorAmbient
+        end)
+        savedLight = nil
+    end
+    if next(savedAtmo) ~= nil then
+        for a, d in pairs(savedAtmo) do
+            if a and a.Parent then pcall(function() a.Density = d end) end
+        end
+        table.clear(savedAtmo)
+    end
+    if savedFog then
+        pcall(function() Lighting.FogStart = savedFog[1] end)
+        pcall(function() Lighting.FogEnd = savedFog[2] end)
+        savedFog = nil
+    end
+    if savedWorld then
+        pcall(restoreWorld)
+        savedWorld = nil
+    end
+    if worldSky and worldSky.Name == "bleed_rest_Sky" then
+        pcall(function() worldSky:Destroy() end)
+    end
+    worldSky = nil
+    if worldAtmosphere and worldAtmosphere.Name == "bleed_rest_Atmosphere" then
+        pcall(function() worldAtmosphere:Destroy() end)
+    end
+    worldAtmosphere = nil
+    if worldBloom then pcall(function() worldBloom:Destroy() end) worldBloom = nil end
+    if worldColorCorrection then pcall(function() worldColorCorrection:Destroy() end) worldColorCorrection = nil end
+    pcall(function() Workspace.Gravity = defaultGravity end)
+    pcall(function() Lumen.Unload() end)
+end
+
+if getgenv then getgenv().bleed_rest_loaded = cleanup end
 
 Lumen:BuildConfigPage(Window)
 Lumen.ToggleMenu(true)

@@ -1,6 +1,6 @@
--- bleed.rest vendored UI library.
--- Upstream: https://github.com/chromatiks/lumen (by chromatiks). All UI credit to upstream.
--- bleed.rest defaults: RightShift menu key, bleed_rest config folder, cyan accent.
+
+
+
 local CSK = ColorSequenceKeypoint.new
 local NSK = NumberSequenceKeypoint.new
 local BSP = Enum.BorderStrokePosition
@@ -261,7 +261,7 @@ local function ResolveIcon(Icon: number | string?): string
 	if AsString:match("^rbxasset") then
 		return AsString
 	end
-	-- bare numeric string → asset id
+	
 	if AsString:match("^%d+$") then
 		return "rbxassetid://" .. AsString
 	end
@@ -271,7 +271,7 @@ local function ResolveIcon(Icon: number | string?): string
 	if Id then
 		return "rbxassetid://" .. tostring(Id)
 	end
-	-- unknown name: empty (caller can hide), never force hash
+	
 	return ""
 end
 
@@ -406,7 +406,7 @@ local function BindDrag(Object: GuiObject, Handle: GuiObject?, ClampScreen: bool
 			if ClampScreen then
 				Target = ClampToScreen(Object, Target)
 			end
-			Object.Position = Object.Position:Lerp(Target, 0.3) -- bleed.rest: delayed/floaty drag
+			Object.Position = Object.Position:Lerp(Target, 0.3) 
 		end)
 	end)
 
@@ -644,7 +644,7 @@ local function SectionBuilder(Container: Frame)
 		Section.PageFrame = Container
 		Section.Side = Section.Side
 
-		-- bleed.rest: section drag-reorder removed entirely (fixed hub layout).
+		
 
 		TIS(Library.Sections, Section)
 		return Section
@@ -1718,7 +1718,7 @@ Library.Window = function(self: Library, propertyTable: {})
 	local Sidebar = Add("Frame", { Parent = Canvas; Name = "Sidebar"; BackgroundColor3 = Library.Theme.Surface; BorderColor3 = RGB(0, 0, 0); BorderSizePixel = 0; Size = UD2(0, 75, 1, 0); }) :: Frame
 	Library.ThemeLink(Sidebar, "BackgroundColor3", "Surface")
 
-	-- Author logo (only if Logo / Icon provided — no default hashtag)
+	
 	local LogoSrc = Window.Logo or Window.Icon
 	local BrandText = tostring(Window.Brand or Window.Title or "bleed.rest")
 	local LogoH = 76
@@ -1981,7 +1981,7 @@ Library.Window = function(self: Library, propertyTable: {})
 			LayoutOrder = #Window.Pages;
 		}) :: TextButton
 
-		-- Soft radial selection bloom (centered behind icon)
+		
 		local GlowImage = Add("ImageLabel", {
 			Parent = PageButton;
 			Name = "GlowImage";
@@ -2161,7 +2161,7 @@ Library.ApplyTheme = function()
 		return
 	end
 
-	-- Always derive AccentDark from Accent when accent changes
+	
 	if T.Accent then
 		local H, S, V = T.Accent:ToHSV()
 		T.AccentDark = HSV(H, math.clamp(S * 0.95, 0, 1), math.max(V * 0.55, 0.12))
@@ -2173,7 +2173,7 @@ Library.ApplyTheme = function()
 		end
 	end
 
-	-- ThemeLink registry
+	
 	local Alive = {}
 	for _, Link in Library.ThemeLinks do
 		if Link.Object and Link.Object.Parent then
@@ -2275,7 +2275,7 @@ Library.ApplyTheme = function()
 		end
 	end
 
-	-- Sections / elements walk
+	
 	for _, Section in (Library.Sections or {}) do
 		local Frame = Section.Frame
 		if Frame and Frame.Parent then
@@ -2387,7 +2387,7 @@ Library.GetLayout = function()
 				})
 			end
 			for _, Sub in (Page.SubPages or {}) do
-				-- sections live under subpages via Library.Sections
+				
 			end
 		end
 	end
@@ -2412,7 +2412,7 @@ Library.GetLayout = function()
 end
 
 Library.SaveLayout = function()
-	-- persisted via next config save; also write layout.json if FS available
+	
 	if not HasFS or not HasFS() then
 		return
 	end
@@ -2445,7 +2445,7 @@ Library.ApplyLayout = function(Layout)
 				if Section.Name == Entry.Name and Section.Frame then
 					if Entry.Order then Section.Frame.LayoutOrder = Entry.Order end
 					if Entry.Side and Section.Side ~= Entry.Side then
-						-- move column if possible
+						
 						local Frame = Section.Frame
 						local Parent = Frame.Parent and Frame.Parent.Parent
 						if Parent then
