@@ -3598,7 +3598,18 @@ Library.ToggleMenu = function(State: boolean?)
 	Library.MenuOpen = State
 	for _, Win in Library.Windows do
 		if Win.Canvas then
-			Win.Canvas.Visible = State
+			if State then
+				Win.Canvas.Visible = true
+				Tween(Win.Canvas, { GroupTransparency = 0 }, 0.16, ES.Quad, ED.Out)
+			else
+				local Canvas = Win.Canvas
+				local Fade = Tween(Canvas, { GroupTransparency = 1 }, 0.16, ES.Quad, ED.In)
+				Fade.Completed:Connect(function()
+					if not Library.MenuOpen and Canvas and Canvas.Parent then
+						Canvas.Visible = false
+					end
+				end)
+			end
 		end
 	end
 	if Library.OpenPopup and Library.OpenPopup.Close then
