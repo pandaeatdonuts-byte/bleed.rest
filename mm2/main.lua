@@ -42,6 +42,7 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
+local CollectionService = game:GetService("CollectionService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
@@ -108,7 +109,7 @@ local State = {
     
     KillAura = false, KillRange = 22, KillMethod = "Knife", KillTargets = "Murderer + Sheriff",
     FakeGun = false, Stealth = false,
-    AutoCoins = false,
+    AutoCoins = false, CoinESP = false, CoinEspMaxDist = 300,
     
     ESP = true, Chams = true, EspName = true, EspRole = true, EspDist = true,
     Tracer = false, TracerFrom = "Bottom", TracerThick = 1,
@@ -458,6 +459,43 @@ local function ensureChams(char)
     return hl
 end
 
+local coinDrawings = {}
+local function getLiveCoins()
+    local list = {}
+    if not CollectionService then return list end
+    for _, v in ipairs(CollectionService:GetTagged("CoinVisual")) do
+        if v:IsA("BasePart") and v.Parent and not v:GetAttribute("Collected") then
+            list[#list + 1] = v
+        end
+    end
+    return list
+end
+local function getCoinDrawing(coin)
+    if not hasDrawing then return nil end
+    local d = coinDrawings[coin]
+    if d then return d end
+    local ok, circle = pcall(function() return Drawing.new("Circle") end)
+    if not ok or not circle then return nil end
+    circle.Thickness = 1
+    circle.Filled = false
+    circle.Color = Color3.fromRGB(255, 220, 80)
+    circle.Visible = false
+    local okT, text = pcall(function() return Drawing.new("Text") end)
+    local t
+    if okT and text then
+        t = text
+        t.Size = 13
+        t.Center = true
+        t.Outline = true
+        t.OutlineColor = Color3.fromRGB(0, 0, 0)
+        t.Color = Color3.fromRGB(255, 220, 80)
+        t.Visible = false
+    end
+    d = { circle = circle, text = t }
+    coinDrawings[coin] = d
+    return d
+end
+
 
 local lastTriggerShot = 0
 local silentOldCF, silentPending, silentScheduled = nil, false, false
@@ -529,6 +567,36 @@ local line = getTracer(plr)
         end
     end
     
+    local coinMyChar = LocalPlayer.Character
+    local coinMyHrp = coinMyChar and coinMyChar:FindFirstChild("HumanoidRootPart")
+    local coinShow = State.CoinESP and not menuOpen
+    for _, coin in ipairs(getLiveCoins()) do
+        local d = getCoinDrawing(coin)
+        if d then
+            local sp, on = screenPoint(cam, coin.Position)
+            local dist = coinMyHrp and (coinMyHrp.Position - coin.Position).Magnitude or 0
+            local show = coinShow and on and (dist <= State.CoinEspMaxDist)
+            d.circle.Visible = show
+            if show then
+                d.circle.Position = sp
+                d.circle.Radius = math.max(4, 8 - 4 * (dist / math.max(State.CoinEspMaxDist, 1)))
+                if d.text then
+                    d.text.Visible = true
+                    d.text.Position = Vector2.new(sp.X, sp.Y - 14)
+                    d.text.Text = "Coin"
+                end
+            elseif d.text then
+                d.text.Visible = false
+            end
+        end
+    end
+    for coin, d in pairs(coinDrawings) do
+        if not coin.Parent or coin:GetAttribute("Collected") then
+            if d.circle then pcall(function() d.circle:Remove() end) end
+            if d.text then pcall(function() d.text:Remove() end) end
+            coinDrawings[coin] = nil
+        end
+    end
     if State.Aimbot and State.AimHeld and not menuOpen then
         local plr, char, part = bestTarget(cam, mousePos, State.AimFOV, State.AimTargets, State.AimPart)
         if plr and part then
@@ -752,23 +820,17 @@ local Coins = FarmPage:SubPage({ Name = "Coins" })
 local CoinSec = Coins:Section({ Name = "Auto Farm"; Side = "Left"; Icon = "box" })
 local CoinLabel = CoinSec:Label({ Text = "Auto collect coins" })
 CoinLabel:Toggle({ State = false; Flag = "AutoCoins"; Callback = function(v) State.AutoCoins = v end })
+local CoinEspSec = Coins:Section({ Name = "Coin ESP"; Side = "Right"; Icon = "eye" })
+local CoinEspOn = CoinEspSec:Label({ Text = "Enable coin ESP" })
+CoinEspOn:Toggle({ State = false; Flag = "CoinESP"; Callback = function(v) State.CoinESP = v end })
+CoinEspSec:Slider({ Name = "Max distance"; Suffix = " studs"; Value = 300; Min = 25; Max = 2000; Increment = 25; Flag = "CoinEspMaxDist"; Callback = function(v) State.CoinEspMaxDist = v end })
 
 task.spawn(function()
     while Running and task.wait(0.5) do
         local getCoin = Gameplay and Gameplay:FindFirstChild("GetCoin")
         if State.AutoCoins and getCoin then
-            local folder = RS:FindFirstChild("Coins")
-            if folder then
-                for _, objFolder in ipairs(folder:GetChildren()) do
-                    for _, coin in ipairs(objFolder:GetChildren()) do
-                        if coin:IsA("BasePart") then
-                            fire1(getCoin, coin)
-                        elseif coin:IsA("Model") then
-                            local p = coin:FindFirstChildWhichIsA("BasePart", true)
-                            if p then fire1(getCoin, p) end
-                        end
-                    end
-                end
+            for _, coin in ipairs(getLiveCoins()) do
+                fire1(getCoin, coin)
             end
         end
     end
@@ -1150,22 +1212,10 @@ local function nearestCoinPos()
     local myChar = LocalPlayer.Character
     local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myHrp then return nil end
-    local folder = RS:FindFirstChild("Coins")
-    if not folder then return nil end
     local bestPos, bestD = nil, math.huge
-    for _, objFolder in ipairs(folder:GetChildren()) do
-        for _, coin in ipairs(objFolder:GetChildren()) do
-            local p = nil
-            if coin:IsA("BasePart") then p = coin.Position
-            elseif coin:IsA("Model") then
-                local b = coin:FindFirstChildWhichIsA("BasePart", true)
-                if b then p = b.Position end
-            end
-            if p then
-                local d = (myHrp.Position - p).Magnitude
-                if d < bestD then bestD, bestPos = d, p end
-            end
-        end
+    for _, coin in ipairs(getLiveCoins()) do
+        local d = (myHrp.Position - coin.Position).Magnitude
+        if d < bestD then bestD, bestPos = d, coin.Position end
     end
     return bestPos
 end
@@ -1430,6 +1480,11 @@ local function cleanup()
     table.clear(tracers)
     if fovCircle then pcall(function() fovCircle:Remove() end) end
     if silentCircle then pcall(function() silentCircle:Remove() end) end
+    for coin, d in pairs(coinDrawings) do
+        if d.circle then pcall(function() d.circle:Remove() end) end
+        if d.text then pcall(function() d.text:Remove() end) end
+    end
+    table.clear(coinDrawings)
     for _, plr in ipairs(Players:GetPlayers()) do
         local char = plr.Character
         if char then
