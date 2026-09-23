@@ -66,6 +66,9 @@ local function toScreen(cam, world)
     local inset = GuiService:GetGuiInset()
     return Vector2.new(v.X + inset.X, v.Y + inset.Y), on
 end
+local function screenPoint(cam, world)
+    return toScreen(cam, world)
+end
 
 
 local Remotes = RS:FindFirstChild("Remotes")
@@ -266,11 +269,12 @@ local function leadTime()
     if scale <= 0 then return 0 end
     return (getPing() + (State.ExtraLead or 0)) * scale
 end
+local PARTS_LIST = { "Head", "UpperTorso", "LowerTorso", "HumanoidRootPart", "Torso", "Left Leg", "Right Leg", "Left Arm", "Right Arm" }
 local function aimPartOf(char, mode)
     if not char then return nil end
     if mode == "Random" then
         local pool = {}
-        for _, n in ipairs({ "Head", "UpperTorso", "HumanoidRootPart" }) do
+        for _, n in ipairs({ "Head", "UpperTorso", "LowerTorso", "HumanoidRootPart", "Left Leg", "Right Leg", "Left Arm", "Right Arm" }) do
             local p = char:FindFirstChild(n)
             if p and p:IsA("BasePart") then pool[#pool + 1] = p end
         end
@@ -283,6 +287,32 @@ local function aimPartOf(char, mode)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if hrp then return hrp end
     return char:FindFirstChildWhichIsA("BasePart", true)
+end
+local closestPartCache = nil
+local function closestPartFor(char, cam, refPos)
+    if not char then return nil end
+    local now = os.clock()
+    if closestPartCache and closestPartCache.char == char and now - closestPartCache.at < 0.5 then
+        return closestPartCache.part
+    end
+    local bestPart, bestD = nil, math.huge
+    for _, name in ipairs(PARTS_LIST) do
+        local p = char:FindFirstChild(name)
+        if p and p:IsA("BasePart") then
+            local sp, on = screenPoint(cam, p.Position)
+            if on then
+                local d = (sp - refPos).Magnitude
+                if d < bestD then bestD, bestPart = d, p end
+            end
+        end
+    end
+    if not bestPart then bestPart = aimPartOf(char, "HumanoidRootPart") end
+    closestPartCache = { char = char, part = bestPart, at = now }
+    return bestPart
+end
+local function getAimPart(char, usePart, cam, refPos)
+    if usePart == "Closest" then return closestPartFor(char, cam, refPos) end
+    return aimPartOf(char, usePart)
 end
 local function predictPos(part)
     if not part then return nil end
@@ -337,9 +367,6 @@ local function validTarget(plr, mode, maxDist)
     if maxDist and (myHrp.Position - hrp.Position).Magnitude > maxDist then return nil end
     return char, role, hum
 end
-local function screenPoint(cam, world)
-    return toScreen(cam, world)
-end
 local currentAimTarget = nil
 local function bestTarget(cam, mousePos, fovPx, mode, usePart)
     local myChar = LocalPlayer.Character
@@ -350,11 +377,13 @@ local function bestTarget(cam, mousePos, fovPx, mode, usePart)
         if plr then
             local char, role = validTarget(plr, mode, State.EspMaxDist)
             if char then
-                local part = aimPartOf(char, usePart)
+                local part = getAimPart(char, usePart, cam, mousePos)
                 if part then
                     local sp, on = screenPoint(cam, part.Position)
                     if on and (sp - mousePos).Magnitude <= fovPx then
-                        return plr, char, part, role
+                        if State.Wallbang or not State.AimVisible or rayVisible(cam, cam.CFrame.Position, part.Position, myChar, char) then
+                            return plr, char, part, role
+                        end
                     end
                 end
             end
@@ -365,11 +394,59 @@ local function bestTarget(cam, mousePos, fovPx, mode, usePart)
     for _, plr in ipairs(Players:GetPlayers()) do
         local char, role = validTarget(plr, mode, State.EspMaxDist)
         if char then
-            local part = aimPartOf(char, usePart)
+            local part = getAimPart(char, usePart, cam, mousePos)
             if part then
                 local sp, on = screenPoint(cam, part.Position)
                 if on then
                     local d = (sp - mousePos).Magnitude
+                    if d <= bestD then
+                        if State.Wallbang or not State.AimVisible or rayVisible(cam, cam.CFrame.Position, part.Position, myChar, char) then
+                            best, bestChar, bestPart, bestRole, bestD = plr, char, part, role, d
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if bestChar then currentAimTarget = bestChar end
+    return best, bestChar, bestPart, bestRole
+end
+
+local function viewportCenter(cam)
+    local vs = cam.ViewportSize
+    return Vector2.new(vs.X / 2, vs.Y / 2)
+end
+local function bestViewportTarget(cam, fovPx, mode, usePart)
+    local myChar = LocalPlayer.Character
+    if not myChar then return nil end
+    local center = viewportCenter(cam)
+    if currentAimTarget and currentAimTarget.Parent then
+        local plr = Players:GetPlayerFromCharacter(currentAimTarget)
+        if plr then
+            local char, role = validTarget(plr, mode, State.EspMaxDist)
+            if char then
+                local part = getAimPart(char, usePart, cam, center)
+                if part then
+                    local sp, on = screenPoint(cam, part.Position)
+                    if on and (sp - center).Magnitude <= fovPx then
+                        if State.Wallbang or not State.AimVisible or rayVisible(cam, cam.CFrame.Position, part.Position, myChar, char) then
+                            return plr, char, part, role
+                        end
+                    end
+                end
+            end
+        end
+        currentAimTarget = nil
+    end
+    local best, bestChar, bestPart, bestRole, bestD = nil, nil, nil, nil, fovPx
+    for _, plr in ipairs(Players:GetPlayers()) do
+        local char, role = validTarget(plr, mode, State.EspMaxDist)
+        if char then
+            local part = getAimPart(char, usePart, cam, center)
+            if part then
+                local sp, on = screenPoint(cam, part.Position)
+                if on then
+                    local d = (sp - center).Magnitude
                     if d <= bestD then
                         if State.Wallbang or not State.AimVisible or rayVisible(cam, cam.CFrame.Position, part.Position, myChar, char) then
                             best, bestChar, bestPart, bestRole, bestD = plr, char, part, role, d
@@ -509,7 +586,7 @@ track(RunService.RenderStepped:Connect(function()
     local mousePos = screenMouse()
     local menuOpen = Lumen.MenuOpen == true
     setCircle(fovCircle, State.ShowAimFOV and State.Aimbot and not menuOpen, mousePos, State.AimFOV)
-    setCircle(silentCircle, State.ShowSilentFOV and State.Silent and not menuOpen, mousePos, State.SilentFOV)
+    setCircle(silentCircle, State.ShowSilentFOV and State.Silent and not menuOpen, viewportCenter(cam), State.SilentFOV)
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
             local char = plr.Character
@@ -596,7 +673,7 @@ local line = getTracer(plr)
             coinDrawings[coin] = nil
         end
     end
-    if State.Aimbot and State.AimHeld and not menuOpen then
+if State.Aimbot and State.AimHeld and not menuOpen then
         local plr, char, part = bestTarget(cam, mousePos, State.AimFOV, State.AimTargets, State.AimPart)
         if plr and part then
             local aimAt = predictPos(part)
@@ -605,6 +682,8 @@ local line = getTracer(plr)
                     local sp = toScreen(cam, aimAt)
                     local sx = ((sp.X - mousePos.X) / math.max(State.AimSmoothX, 1)) * State.AimSens
                     local sy = ((sp.Y - mousePos.Y) / math.max(State.AimSmoothY, 1)) * State.AimSens
+                    sx = math.clamp(sx, -40, 40)
+                    sy = math.clamp(sy, -40, 40)
                     local ix, iy = round6(sx), round6(sy)
                     if ix ~= 0 or iy ~= 0 then
                         pcall(function() mousemoverel(ix, iy) end)
@@ -646,8 +725,7 @@ track(UIS.InputBegan:Connect(function(input, gp)
     if math.random(1, 100) > State.HitChance then return end
     local cam = getCam()
     if not cam then return end
-    local mousePos = screenMouse()
-    local plr, char, part = bestTarget(cam, mousePos, State.SilentFOV, State.AimTargets, State.AimPart)
+    local plr, char, part = bestViewportTarget(cam, State.SilentFOV, State.AimTargets, State.AimPart)
     if plr and part then
         local aimAt = predictPos(part)
         if aimAt then
@@ -686,7 +764,7 @@ AimSec:Slider({ Name = "Camera smoothing"; Suffix = "%"; Value = 35; Min = 0; Ma
 local PredOn = AimSec:Label({ Text = "Prediction" })
 PredOn:Toggle({ State = true; Flag = "AimPredict"; Callback = function(v) State.AimPredict = v end })
 AimSec:Slider({ Name = "Prediction amount"; Suffix = "%"; Value = 100; Min = 0; Max = 200; Increment = 5; Flag = "PredictAmt"; Callback = function(v) State.PredictAmt = v end })
-AimSec:Dropdown({ Name = "Target part"; Options = { "Head", "Torso", "HumanoidRootPart", "Random" }; Value = "Head"; Flag = "AimPart"; Callback = function(v) State.AimPart = v end })
+AimSec:Dropdown({ Name = "Target part"; Options = { "Head", "UpperTorso", "LowerTorso", "HumanoidRootPart", "Torso", "Left Leg", "Right Leg", "Left Arm", "Right Arm", "Closest", "Random" }; Value = "Head"; Flag = "AimPart"; Callback = function(v) State.AimPart = v end })
 AimSec:Dropdown({ Name = "Targets"; Options = { "Auto", "Murderer", "Murderer + Sheriff", "Sheriff", "Everyone" }; Value = "Auto"; Flag = "AimTargets"; Callback = function(v) State.AimTargets = v end })
 local VisCheck = AimSec:Label({ Text = "Visible check" })
 VisCheck:Toggle({ State = true; Flag = "AimVisible"; Callback = function(v) State.AimVisible = v end })
@@ -838,9 +916,23 @@ task.spawn(function()
 end)
 
 
-local PlayerPage = Window:Page({ Icon = "user" })
-local Move = PlayerPage:SubPage({ Name = "Movement" })
-local MoveSec = Move:Section({ Name = "Character"; Side = "Left"; Icon = "move" })
+local savedFov = nil
+local MiscPage = Window:Page({ Icon = "star" })
+local MiscSub = MiscPage:SubPage({ Name = "Misc" })
+local CamSec = MiscSub:Section({ Name = "Camera"; Side = "Left"; Icon = "settings" })
+local FovOn = CamSec:Label({ Text = "Field of view override" })
+FovOn:Toggle({ State = false; Flag = "FovOverride"; Callback = function(v)
+    if v and not savedFov then
+        local cam = getCam()
+        if cam then savedFov = cam.FieldOfView end
+    elseif not v and savedFov then
+        local cam = getCam()
+        if cam then pcall(function() cam.FieldOfView = savedFov end) end
+    end
+    State.FovOverride = v
+end })
+CamSec:Slider({ Name = "FOV"; Suffix = ""; Value = 70; Min = 20; Max = 120; Increment = 1; Flag = "FovValue"; Callback = function(v) State.FovValue = v end })
+local MoveSec = MiscSub:Section({ Name = "Movement"; Side = "Left"; Icon = "move" })
 MoveSec:Slider({ Name = "WalkSpeed"; Suffix = ""; Value = 16; Min = 1; Max = 500; Increment = 1; Flag = "WalkSpeed"; Callback = function(v)
     State.WalkSpeed = v
     local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -865,23 +957,6 @@ local NoclipOn = MoveSec:Label({ Text = "Noclip" })
 NoclipOn:Toggle({ State = false; Flag = "Noclip"; Callback = function(v) State.Noclip = v end })
 local ClickTpOn = MoveSec:Label({ Text = "Ctrl+Click teleport" })
 ClickTpOn:Toggle({ State = false; Flag = "ClickTP"; Callback = function(v) State.ClickTP = v end })
-
-local savedFov = nil
-local MiscPage = Window:Page({ Icon = "star" })
-local MiscSub = MiscPage:SubPage({ Name = "Misc" })
-local CamSec = MiscSub:Section({ Name = "Camera"; Side = "Left"; Icon = "settings" })
-local FovOn = CamSec:Label({ Text = "Field of view override" })
-FovOn:Toggle({ State = false; Flag = "FovOverride"; Callback = function(v)
-    if v and not savedFov then
-        local cam = getCam()
-        if cam then savedFov = cam.FieldOfView end
-    elseif not v and savedFov then
-        local cam = getCam()
-        if cam then pcall(function() cam.FieldOfView = savedFov end) end
-    end
-    State.FovOverride = v
-end })
-CamSec:Slider({ Name = "FOV"; Suffix = ""; Value = 70; Min = 20; Max = 120; Increment = 1; Flag = "FovValue"; Callback = function(v) State.FovValue = v end })
 local CharSec = MiscSub:Section({ Name = "Character"; Side = "Right"; Icon = "user" })
 local SjOn = CharSec:Label({ Text = "Super jump" })
 SjOn:Toggle({ State = false; Flag = "SuperJump"; Callback = function(v) State.SuperJump = v end })
