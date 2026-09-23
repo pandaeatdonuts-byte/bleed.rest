@@ -1880,7 +1880,9 @@ Library.Window = function(self: Library, propertyTable: {})
 
 	Window.Canvas = Canvas
 	TIS(Library.Windows, Window)
-	Add("UIScale", { Parent = Canvas; Scale = Library.UIScale })
+	if not Library._Instance:FindFirstChildOfClass("UIScale") then
+		Add("UIScale", { Parent = Library._Instance; Scale = Library.UIScale })
+	end
 
 	local function CenterCanvas()
 		local Camera = workspace.CurrentCamera
@@ -2875,33 +2877,7 @@ Library.LoadingScreen = function(self: Library, propertyTable: {})
 	return Gui
 end
 
-Library.UIScale = 1
-
-Library.SetScale = function(Scale: number)
-	Scale = MC(Scale / (Scale > 2 and 100 or 1), 0.75, 1.25)
-	Library.UIScale = Scale
-	local Existing = Library._Instance and Library._Instance:FindFirstChildOfClass("UIScale")
-	if not Existing and Library._Instance then
-		Existing = Add("UIScale", { Parent = Library._Instance })
-	end
-	if Existing then
-		Existing.Scale = Scale
-	end
-	for _, Win in Library.Windows do
-		if Win.Canvas then
-
-			local Abs = Win.Canvas.AbsolutePosition
-			local Size = Win.Canvas.AbsoluteSize
-			local Center = Abs + Size * 0.5
-			task.defer(function()
-				if not Win.Canvas or not Win.Canvas.Parent then return end
-				local NewSize = Win.Canvas.AbsoluteSize
-				local NewPos = Center - NewSize * 0.5
-				Win.Canvas.Position = ClampToScreen(Win.Canvas, UFO(NewPos.X, NewPos.Y))
-			end)
-		end
-	end
-end
+Library.UIScale = 1.05
 
 Library.Watermark = {
 	Enabled = true;
@@ -3903,18 +3879,6 @@ Library.BuildConfigPage = function(self: Library, Window: any)
 		end
 	end)
 
-	MenuSection:Slider({
-		Name = "UI scale";
-		Suffix = "%";
-		Value = math.floor(Library.UIScale * 100);
-		Min = 75;
-		Max = 125;
-		Increment = 5;
-		Flag = "UIScale";
-		Callback = function(Value)
-			Library.SetScale(Value / 100)
-		end;
-	})
 	local WM = MenuSection:Label({ Text = "Watermark" })
 	WM:Toggle({
 		State = Library.Watermark.Enabled;
